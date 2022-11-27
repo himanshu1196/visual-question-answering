@@ -1,6 +1,6 @@
 """""""""
 Pytorch implementation of "A simple neural network module for relational reasoning
-Code is based on pytorch/examples/mnist (https://github.com/pytorch/examples/tree/master/mnist)
+    Code is based on pytorch/examples/mnist (https://github.com/pytorch/examples/tree/master/mnist)
 """""""""
 from __future__ import print_function
 import argparse
