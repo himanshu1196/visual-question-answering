@@ -7,6 +7,8 @@ import pickle
 import warnings
 import argparse
 
+import pandas as pd
+
 parser = argparse.ArgumentParser(description='Sort-of-CLEVR dataset generator')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -17,8 +19,8 @@ args = parser.parse_args()
 random.seed(args.seed)
 np.random.seed(args.seed)
 
-train_size = 9500
-test_size = 500
+train_size = 9800
+test_size = 200
 img_size = 75
 size = 5
 question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
@@ -37,6 +39,8 @@ colors = [
     (128,128,128),##k
     (0,255,255)##y
 ]
+
+materials = ['shiny','smooth','matte']
 
 
 try:
@@ -57,7 +61,7 @@ def center_generate(objects):
 
 
 
-def build_dataset():
+def build_dataset(index, df):
     objects = []
     img = np.ones((img_size,img_size,3)) * 255
     for color_id,color in enumerate(colors):  
@@ -67,10 +71,13 @@ def build_dataset():
             end = (center[0]+size, center[1]+size)
             cv2.rectangle(img, start, end, color, -1)
             objects.append((color_id,center,'r'))
+            #state description
+            df.loc[len(df.index)] = [index,color_id,center[0],center[1],color,'rectangle','matte','big']
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
             objects.append((color_id,center,'c'))
+            df.loc[len(df.index)] = [index, color_id, center[0], center[1], color,'circle', 'matte', 'big']
 
 
     ternary_questions = []
@@ -263,9 +270,14 @@ def build_dataset():
 
 
 print('building test datasets...')
-test_datasets = [build_dataset() for _ in range(test_size)]
+COLUMNS = ['img_id','obj_id', 'x', 'y', 'color', 'shape', 'material', 'size']
+scene_description_test = pd.DataFrame(columns=COLUMNS)
+
+test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
+print(scene_description_test)
+scene_description_train = pd.DataFrame(columns=COLUMNS)
 print('building train datasets...')
-train_datasets = [build_dataset() for _ in range(train_size)]
+train_datasets = [build_dataset(index, scene_description_test) for index in range(train_size)]
 
 
 #img_count = 0
