@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 
 
-class ConvInputModel(nn.Module):
+class ConvInputModel(nn.Module): # Module: Pytorch Base class for all neural network modules.
     def __init__(self):
         super(ConvInputModel, self).__init__()
         

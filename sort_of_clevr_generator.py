@@ -17,19 +17,25 @@ args = parser.parse_args()
 random.seed(args.seed)
 np.random.seed(args.seed)
 
-train_size = 9500
-test_size = 500
+# <Change the number of training/test dataset to match the paper>
+train_size = 9800
+test_size = 200
+# train_size = 9500
+# test_size = 500
+
+# ? how do we know these numbers?
 img_size = 75
-size = 5
-question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
+size = 5 # Is this question type and subtype?
+question_size = 18  ##? 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
 q_type_idx = 12
 sub_q_type_idx = 15
+
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
 nb_questions = 10
 dirs = './data'
 
-colors = [
+colors = [ # 6 colors
     (0,0,255),##r
     (0,255,0),##g
     (255,0,0),##b
@@ -48,7 +54,7 @@ def center_generate(objects):
     while True:
         pas = True
         center = np.random.randint(0+size, img_size - size, 2)        
-        if len(objects) > 0:
+        if len(objects) > 0: # if there is an img
             for name,c,shape in objects:
                 if ((center - c) ** 2).sum() < ((size * 2) ** 2):
                     pas = False
@@ -56,30 +62,36 @@ def center_generate(objects):
             return center
 
 
-
 def build_dataset():
     objects = []
     img = np.ones((img_size,img_size,3)) * 255
     for color_id,color in enumerate(colors):  
         center = center_generate(objects)
-        if random.random()<0.5:
+        if random.random()<0.5: # rectangle
             start = (center[0]-size, center[1]-size)
             end = (center[0]+size, center[1]+size)
-            cv2.rectangle(img, start, end, color, -1)
+            cv2.rectangle(img, start, end, color, -1) # Thickness of -1 px will fill the rectangle shape by the specified color.
             objects.append((color_id,center,'r'))
-        else:
+        else: # circle
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
             objects.append((color_id,center,'c'))
 
 
-    ternary_questions = []
-    binary_questions = []
-    norel_questions = []
-    ternary_answers = []
-    binary_answers = []
-    norel_answers = []
-    """Non-relational questions"""
+    ternary_questions = [] # no need
+    binary_questions = [] # encoded questions
+    norel_questions = [] # nonrelational questions
+    ternary_answers = [] # no need
+    binary_answers = [] # encoded answers
+    norel_answers = [] # non relational answers
+    
+    """@@@ Non-relational questions @@@"""
+    '''
+    - <3 subtype>: Non-relational questions
+            - 0: query shape (square or circle)
+            - 1: query horizontal position (left/right of the image)
+            - 2: query vertical position (top/bottom of the image)
+    '''
     for _ in range(nb_questions):
         question = np.zeros((question_size))
         color = random.randint(0,5)
@@ -90,28 +102,30 @@ def build_dataset():
         norel_questions.append(question)
         """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
         if subtype == 0:
-            """query shape->rectangle/circle"""
-            if objects[color][2] == 'r':
-                answer = 2
+            """query SHAPE->rectangle/circle"""
+            if objects[color][2] == 'r':  # ? is it because the order is RGB->BGR?
+                answer = 2 # what are these numbers?
             else:
                 answer = 3
 
         elif subtype == 1:
-            """query horizontal position->yes/no"""
+            """query HORIZONTAL POSITION ->yes/no"""
+            '''Left/Right'''
             if objects[color][1][0] < img_size / 2:
                 answer = 0
             else:
                 answer = 1
 
         elif subtype == 2:
-            """query vertical position->yes/no"""
+            """query VERTICAL POSITION ->yes/no"""
+            '''Top/Bottom(Vertical)'''
             if objects[color][1][1] < img_size / 2:
                 answer = 0
             else:
                 answer = 1
         norel_answers.append(answer)
     
-    """Binary Relational questions"""
+    """@@@ Binary Relational questions @@@"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
         color = random.randint(0,5)
@@ -122,10 +136,10 @@ def build_dataset():
         binary_questions.append(question)
 
         if subtype == 0:
-            """closest-to->rectangle/circle"""
+            """CLOSEST-TO-> rectangle/circle (min)""" 
             my_obj = objects[color][1]
             dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
-            dist_list[dist_list.index(0)] = 999
+            dist_list[dist_list.index(0)] = 999 # ? what is 999
             closest = dist_list.index(min(dist_list))
             if objects[closest][2] == 'r':
                 answer = 2
@@ -133,7 +147,7 @@ def build_dataset():
                 answer = 3
                 
         elif subtype == 1:
-            """furthest-from->rectangle/circle"""
+            """FURTHEST-from->rectangle/circle (max)"""
             my_obj = objects[color][1]
             dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
             furthest = dist_list.index(max(dist_list))
@@ -143,16 +157,20 @@ def build_dataset():
                 answer = 3
 
         elif subtype == 2:
-            """count->1~6"""
+            """COUNT->1~6"""
             my_obj = objects[color][2]
             count = -1
-            for obj in objects:
-                if obj[2] == my_obj:
+            for obj in objects: #? objects = a pic containing 6 objects ?
+                if obj[2] == my_obj: # same ?color or shape as well?
                     count +=1 
             answer = count+4
 
         binary_answers.append(answer)
 
+
+'''
+Ternary: NO NEED FOR FINAL PROJECT
+'''
     """Ternary Relational questions"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
@@ -253,11 +271,11 @@ def build_dataset():
 
         ternary_answers.append(answer)
 
-    ternary_relations = (ternary_questions, ternary_answers)
-    binary_relations = (binary_questions, binary_answers)
-    norelations = (norel_questions, norel_answers)
+    ternary_relations = (ternary_questions, ternary_answers) # no need 
+    binary_relations = (binary_questions, binary_answers) # Relational - Binary
+    norelations = (norel_questions, norel_answers) # Non-relational = Subtype
     
-    img = img/255.
+    img = img/255. # pixel values range from 0 to 256
     dataset = (img, ternary_relations, binary_relations, norelations)
     return dataset
 

@@ -13,9 +13,9 @@ import csv
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
+from torch.autograd import Variable # Computes the forward
 
-from model import RN, CNN_MLP
+from model import RN, CNN_MLP # Only use RN for the Final Project
 
 
 # Training settings
@@ -36,10 +36,10 @@ parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--resume', type=str,
                     help='resume from model stored')
-parser.add_argument('--relation-type', type=str, default='binary',
+parser.add_argument('--relation-type', type=str, default='binary', # Binary = Relational questions
                     help='what kind of relations to learn. options: binary, ternary (default: binary)')
 
-args = parser.parse_args()
+args = parser.parse_args()          
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
@@ -48,15 +48,15 @@ if args.cuda:
 
 summary_writer = SummaryWriter()
 
-if args.model=='CNN_MLP': 
+if args.model=='CNN_MLP':  # no need
   model = CNN_MLP(args)
 else:
-  model = RN(args)
+  model = RN(args) # use RN
   
 model_dirs = './model'
 bs = args.batch_size
-input_img = torch.FloatTensor(bs, 3, 75, 75)
-input_qst = torch.FloatTensor(bs, 18)
+input_img = torch.FloatTensor(bs, 3, 75, 75) #img input size: 75 x 75
+input_qst = torch.FloatTensor(bs, 18) # ?
 label = torch.LongTensor(bs)
 
 if args.cuda:
@@ -65,7 +65,7 @@ if args.cuda:
     input_qst = input_qst.cuda()
     label = label.cuda()
 
-input_img = Variable(input_img)
+input_img = Variable(input_img) # Variable: pytorch Forward Pass
 input_qst = Variable(input_qst)
 label = Variable(label)
 
@@ -109,17 +109,21 @@ def train(epoch, ternary, rel, norel):
     l_binary = []
     l_unary = []
 
-    for batch_idx in range(len(rel[0]) // bs):
+    for batch_idx in range(len(rel[0]) // bs): #bs:batch size
+        '''----- no need for the final project-----'''
         tensor_data(ternary, batch_idx)
         accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)
         acc_ternary.append(accuracy_ternary.item())
         l_ternary.append(loss_ternary.item())
+        ''''''
 
+        ''' TRAIN: RELATION '''
         tensor_data(rel, batch_idx)
         accuracy_rel, loss_binary = model.train_(input_img, input_qst, label)
         acc_rels.append(accuracy_rel.item())
         l_binary.append(loss_binary.item())
 
+        ''' TRAIN: NON-RELATION '''
         tensor_data(norel, batch_idx)
         accuracy_norel, loss_unary = model.train_(input_img, input_qst, label)
         acc_norels.append(accuracy_norel.item())
@@ -233,7 +237,7 @@ def load_data():
     print('processing data...')
 
     for img, ternary, relations, norelations in train_datasets:
-        img = np.swapaxes(img, 0, 2)
+        img = np.swapaxes(img, 0, 2) # for what ??
         for qst, ans in zip(ternary[0], ternary[1]):
             ternary_train.append((img,qst,ans))
         for qst,ans in zip(relations[0], relations[1]):
