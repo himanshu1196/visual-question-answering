@@ -15,12 +15,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.autograd import Variable
 
-from model import RN, CNN_MLP
+from model import RN, BiggerRN, CNN_MLP
 
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Relational-Network sort-of-CLVR Example')
-parser.add_argument('--model', type=str, choices=['RN', 'CNN_MLP'], default='RN', 
+parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP'], default='RN', 
                     help='resume from model stored')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training (default: 64)')
@@ -36,7 +36,7 @@ parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
 parser.add_argument('--resume', type=str,
                     help='resume from model stored')
-parser.add_argument('--relation-type', type=str, default='binary',
+parser.add_argument('--relation_type', type=str, default='binary',
                     help='what kind of relations to learn. options: binary, ternary (default: binary)')
 
 args = parser.parse_args()
@@ -50,13 +50,15 @@ summary_writer = SummaryWriter()
 
 if args.model=='CNN_MLP': 
   model = CNN_MLP(args)
+elif args.model=='Original_RN':
+  model = BiggerRN(args)
 else:
   model = RN(args)
   
 model_dirs = './model'
 bs = args.batch_size
 input_img = torch.FloatTensor(bs, 3, 75, 75)
-input_qst = torch.FloatTensor(bs, 18)
+input_qst = torch.FloatTensor(bs, 11)
 label = torch.LongTensor(bs)
 
 if args.cuda:
@@ -110,8 +112,10 @@ def train(epoch, ternary, rel, norel):
     l_unary = []
 
     for batch_idx in range(len(rel[0]) // bs):
-        tensor_data(ternary, batch_idx)
-        accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)
+        accuracy_ternary, loss_ternary = -1., -1.
+        if args.relation_type == 'ternary':
+            tensor_data(ternary, batch_idx)
+            accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)
         acc_ternary.append(accuracy_ternary.item())
         l_ternary.append(loss_ternary.item())
 
@@ -178,8 +182,10 @@ def test(epoch, ternary, rel, norel):
     loss_unary = []
 
     for batch_idx in range(len(rel[0]) // bs):
-        tensor_data(ternary, batch_idx)
-        acc_ter, l_ter = model.test_(input_img, input_qst, label)
+        acc_ter, l_ter = -1., -1.
+        if args.relation_type == 'ternary':
+            tensor_data(ternary, batch_idx)
+            acc_ter, l_ter = model.test_(input_img, input_qst, label)
         accuracy_ternary.append(acc_ter.item())
         loss_ternary.append(l_ter.item())
 
@@ -221,7 +227,8 @@ def test(epoch, ternary, rel, norel):
 def load_data():
     print('loading data...')
     dirs = './data'
-    filename = os.path.join(dirs,'sort-of-clevr.pickle')
+    # filename = os.path.join(dirs,'sort-of-clevr.pickle')
+    filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
     with open(filename, 'rb') as f:
       train_datasets, test_datasets = pickle.load(f)
     ternary_train = []
@@ -232,19 +239,19 @@ def load_data():
     norel_test = []
     print('processing data...')
 
-    for img, ternary, relations, norelations in train_datasets:
+    for img, relations, norelations in train_datasets:
         img = np.swapaxes(img, 0, 2)
-        for qst, ans in zip(ternary[0], ternary[1]):
-            ternary_train.append((img,qst,ans))
+        # for qst, ans in zip(ternary[0], ternary[1]):
+        #     ternary_train.append((img,qst,ans))
         for qst,ans in zip(relations[0], relations[1]):
             rel_train.append((img,qst,ans))
         for qst,ans in zip(norelations[0], norelations[1]):
             norel_train.append((img,qst,ans))
 
-    for img, ternary, relations, norelations in test_datasets:
+    for img, relations, norelations in test_datasets:
         img = np.swapaxes(img, 0, 2)
-        for qst, ans in zip(ternary[0], ternary[1]):
-            ternary_test.append((img, qst, ans))
+        # for qst, ans in zip(ternary[0], ternary[1]):
+        #     ternary_test.append((img, qst, ans))
         for qst,ans in zip(relations[0], relations[1]):
             rel_test.append((img,qst,ans))
         for qst,ans in zip(norelations[0], norelations[1]):
