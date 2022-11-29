@@ -17,8 +17,8 @@ args = parser.parse_args()
 random.seed(args.seed)
 np.random.seed(args.seed)
 
-train_size = 9500
-test_size = 500
+train_size = 9800
+test_size = 200
 img_size = 75
 size = 5
 question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
