@@ -444,7 +444,7 @@ class StateRN(BasicModel):
         self.f_fc1 = nn.Linear(512, 1024)
         self.f_fc2 = nn.Linear(512, 1024)
         self.f_fc3 = nn.Linear(512, 1024)
-        self.f_fc4 = nn.Linear(64 ,10)
+        self.f_fc4 = nn.Linear(64, 10)
         # (?) #final output length depends on the answer embedding (10 in this case?)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
