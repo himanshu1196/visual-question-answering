@@ -466,6 +466,9 @@ class StateRN(BasicModel):
         self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
     def forward(self, img, qst):
+        # 4 columns,corresponds to object size (5x5 in conv)
+        # 6 objects, corresponds to img size = 256 pixels (?)
+        # 64 = minibatch size
         # x = self.conv(img)  ## x = (64 x 24 x 5 x 5)
         x = img # x = (64 x 6 x 4)
 
@@ -482,79 +485,49 @@ class StateRN(BasicModel):
         # add coordinates
         # x_flat = torch.cat([x_flat, self.coord_tensor], 2)
 
-        if self.relation_type == 'ternary':
-            # add question everywhere
-            qst = torch.unsqueeze(qst, 1)  # (64x1x18)
-            qst = qst.repeat(1, 25, 1)  # (64x25x18)
-            qst = torch.unsqueeze(qst, 1)  # (64x1x25x18)
-            qst = torch.unsqueeze(qst, 1)  # (64x1x1x25x18)
 
-            # cast all triples against each other
-            x_i = torch.unsqueeze(x_flat, 1)  # (64x1x25x26)
-            x_i = torch.unsqueeze(x_i, 3)  # (64x1x25x1x26)
-            x_i = x_i.repeat(1, 25, 1, 25, 1)  # (64x25x25x25x26)
+        # add question everywhere
+        qst = torch.unsqueeze(qst, 1)  # (64,11) -> (64,1,11)
+        qst = qst.repeat(1, 4, 1)  # 64 x 4 x 11
+        qst = torch.unsqueeze(qst, 2)  # 64 x 4 x 1 x 11
 
-            x_j = torch.unsqueeze(x_flat, 2)  # (64x25x1x26)
-            x_j = torch.unsqueeze(x_j, 2)  # (64x25x1x1x26)
-            x_j = x_j.repeat(1, 1, 25, 25, 1)  # (64x25x25x25x26)
+        # cast all pairs against each other
+        # x_flat: 64 x 24 x 6
+        x_i = torch.unsqueeze(x_flat, 1)  # 64 x 1 x 4 x 6
+        x_i = x_i.repeat(1, 25, 1, 1)  # 64 x 4 x 4 x 6
+        x_j = torch.unsqueeze(x_flat, 2)  # 64 x 4 x 1 x 6
+        x_j = torch.cat([x_j, qst], 3)  # 64 x 4 x 1 x (6 + 11)
+        x_j = x_j.repeat(1, 1, 25, 1)  # 64 x 4 x 4 x (6 + 11)
 
-            x_k = torch.unsqueeze(x_flat, 1)  # (64x1x25x26)
-            x_k = torch.unsqueeze(x_k, 1)  # (64x1x1x25x26)
-            x_k = torch.cat([x_k, qst], 4)  # (64x1x1x25x26+18)
-            x_k = x_k.repeat(1, 25, 25, 1, 1)  # (64x25x25x25x26+18)
+        # concatenate all together
+        x_full = torch.cat([x_i, x_j], 3)  # 64 x 4 x 4 x ((6) + (6 + 11))
 
-            # concatenate all together
-            x_full = torch.cat([x_i, x_j, x_k], 4)  # (64x25x25x25x3*26+18)
+        # reshape for passing through network
+        x_ = x_full.view(mb * (d * d) * (d * d), 2 * (256 + 2) + 11)  # (64*4*4 x (2*6+11)) = (1024, 23)
 
-            # reshape for passing through network
-            x_ = x_full.view(mb * (d * d) * (d * d) * (d * d), 96)  # (64*25*25*25x3*26+18) = (1.000.000, 96)
-        else:
-            # add question everywhere
-            qst = torch.unsqueeze(qst, 1)  # (64,11) -> (64,1,11)
-            qst = qst.repeat(1, 4, 1)  # 64 x 4 x 11
-            qst = torch.unsqueeze(qst, 2)  # 64 x 4 x 1 x 11
-
-            # cast all pairs against each other
-            # x_flat: 64 x 24 x 6
-            x_i = torch.unsqueeze(x_flat, 1)  # 64 x 1 x 25 x (256 + 2)
-            x_i = x_i.repeat(1, 25, 1, 1)  # 64 x 25 x 25 x (256 + 2)
-            x_j = torch.unsqueeze(x_flat, 2)  # 64 x 25 x 1 x (256 + 2)
-            x_j = torch.cat([x_j, qst], 3)  # 64 x 25 x 1 x (256 + 2 + 11)
-            x_j = x_j.repeat(1, 1, 25, 1)  # 64 x 25 x 25 x (256 + 2 + 11)
-
-            # concatenate all together
-            x_full = torch.cat([x_i, x_j], 3)  # 64 x 25 x 25 x ((256 + 2) + (256 + 2 + 11))
-
-            # reshape for passing through network
-            x_ = x_full.view(mb * (d * d) * (d * d), 2 * (256 + 2) + 11)  # (64*25*25x2*258+11) = (40.000, 527)
-
-        x_ = self.g_fc1(x_)  # 64*25*25 x 2000
+        x_ = self.g_fc1(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
-        x_ = self.g_fc2(x_)  # 64*25*25 x 2000
+        x_ = self.g_fc2(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
-        x_ = self.g_fc3(x_)  # 64*25*25 x 2000
+        x_ = self.g_fc3(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
-        x_ = self.g_fc4(x_)  # 64*25*25 x 2000
+        x_ = self.g_fc4(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
 
         # reshape again and sum
-        if self.relation_type == 'ternary':
-            x_g = x_.view(mb, (d * d) * (d * d) * (d * d), 256)
-        else:
-            x_g = x_.view(mb, (d * d) * (d * d), 2000)
+        x_g = x_.view(mb, (d * d) * (d * d), 2000)
 
         x_g = x_g.sum(1).squeeze()  # 64 x 2000
 
         """f"""
-        x_f = self.f_fc1(x_g)  # 64 x 2000
+        x_f = self.f_fc1(x_g)  # 64 x 256
         x_f = F.relu(x_f)
-        x_f = self.f_fc2(x_f)  # 64 x 1000
+        x_f = self.f_fc2(x_f)  # 64 x 256
         x_f = F.relu(x_f)
-        x_f = self.f_fc3(x_f)  # 64 x 500
+        x_f = self.f_fc3(x_f)  # 64 x 256
         x_f = F.relu(x_f)
-        x_f = self.f_fc4(x_f)  # 64 x 100
-        x_f = F.relu(x_f)
-        x_f = self.f_fc5(x_f)  # 64 x 10
+        x_f = self.f_fc4(x_f)  # 64 x 256
+        # 4 times in State Description Task
         x_f = F.log_softmax(x_f, dim=1)  # 64 x 10
 
         return x_f
