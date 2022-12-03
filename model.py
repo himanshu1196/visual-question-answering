@@ -429,16 +429,23 @@ class StateRN(BasicModel):
 
         self.relation_type = args.relation_type
 
-        if self.relation_type == 'ternary':
-            ##(number of filters per object+coordinate of object)*3+question vector
-            self.g_fc1 = nn.Linear((4*2)+11, 512)
-        else:
-            ##(number of filters per object+coordinate of object)*2+question vector
-            self.g_fc1 = nn.Linear((4*2)+11, 256)
 
-        self.g_fc2 = nn.Linear(256, 256)
-        self.g_fc3 = nn.Linear(256, 256)
-        self.g_fc4 = nn.Linear(256, 256)
+        ##(number of filters per object+coordinate of object)*2+question vector
+        self.g_fc1 = nn.Linear((4*2)+11, 512)
+
+        #4 MLP layers 512 per layer
+        self.g_fc2 = nn.Linear(512, 512)
+        self.g_fc3 = nn.Linear(512, 512)
+        self.g_fc4 = nn.Linear(512, 512)
+
+        # A three-layer MLP consisting of
+        # 512, 1024 (with 2% dropout) and 29 units with ReLU non-linearities
+        # was used for fθ.
+        self.f_fc1 = nn.Linear(512, 1024)
+        self.f_fc2 = nn.Linear(512, 1024)
+        self.f_fc3 = nn.Linear(512, 1024)
+        self.f_fc4 = nn.Linear(64 ,10)
+        # (?) #final output length depends on the answer embedding (10 in this case?)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
@@ -472,11 +479,13 @@ class StateRN(BasicModel):
         # x = self.conv(img)  ## x = (64 x 24 x 5 x 5)
         x = img # x = (64 x 6 x 4)
 
+
         """g"""
         mb = x.size()[0]
         # n_channels = x.size()[3]
         # d1 = x.size()[2]
         # d2 = 1
+        d = 4
 
         # x_flat = x.view(mb, n_channels, d1 * d2).permute(0, 2, 1)
 
@@ -503,7 +512,7 @@ class StateRN(BasicModel):
         x_full = torch.cat([x_i, x_j], 3)  # 64 x 4 x 4 x ((6) + (6 + 11))
 
         # reshape for passing through network
-        x_ = x_full.view(mb * (d * d) * (d * d), 2 * (256 + 2) + 11)  # (64*4*4 x (2*6+11)) = (1024, 23)
+        x_ = x_full.view(mb * (d * d) * (d * d), 2 * (6) + 11)  # (64*4*4 x (2*6+11)) = (1024, 23)
 
         x_ = self.g_fc1(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
@@ -520,14 +529,14 @@ class StateRN(BasicModel):
         x_g = x_g.sum(1).squeeze()  # 64 x 2000
 
         """f"""
-        x_f = self.f_fc1(x_g)  # 64 x 256
+        # unsure of these dimensions
+        x_f = self.f_fc1(x_g)  # 64 x 1024
         x_f = F.relu(x_f)
-        x_f = self.f_fc2(x_f)  # 64 x 256
+        x_f = self.f_fc2(x_f)  # 64 x 1024
         x_f = F.relu(x_f)
-        x_f = self.f_fc3(x_f)  # 64 x 256
+        x_f = self.f_fc3(x_f)  # 64 x 1024
         x_f = F.relu(x_f)
-        x_f = self.f_fc4(x_f)  # 64 x 256
-        # 4 times in State Description Task
+        x_f = self.f_fc4(x_f)  # 64 x 10
         x_f = F.log_softmax(x_f, dim=1)  # 64 x 10
 
         return x_f
