@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 import random
-#import cPickle as pickle
+
 import pickle
 import warnings
 import argparse
@@ -76,10 +76,8 @@ def build_dataset():
             objects.append((color_id,center,'c'))
 
 
-    # ternary_questions = []
     binary_questions = []
     norel_questions = []
-    # ternary_answers = []
     binary_answers = []
     norel_answers = []
     """Non-relational questions"""
@@ -158,112 +156,10 @@ def build_dataset():
         #answer is an int  between 0 and 9, needs to be one-hot encoded
         binary_answers.append(answer)
 
-    # """Ternary Relational questions"""
-    # for _ in range(nb_questions):
-    #     question = np.zeros((question_size))
-    #     rnd_colors = np.random.permutation(np.arange(5))
-    #     # 1st object
-    #     color1 = rnd_colors[0]
-    #     question[color1] = 1
-    #     # 2nd object
-    #     color2 = rnd_colors[1]
-    #     question[6 + color2] = 1
-
-    #     question[q_type_idx + 2] = 1
-        
-    #     if args.t_subtype >= 0 and args.t_subtype < 3:
-    #         subtype = args.t_subtype
-    #     else:
-    #         subtype = random.randint(0, 2)
-
-    #     question[subtype+sub_q_type_idx] = 1
-    #     ternary_questions.append(question)
-
-    #     # get coordiates of object from question
-    #     A = objects[color1][1]
-    #     B = objects[color2][1]
-
-    #     if subtype == 0:
-    #         """between->1~4"""
-
-    #         between_count = 0 
-    #         # check is any objects lies inside the box
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
-
-    #             # Get x and y coordinate of third object
-    #             other_objx = other_obj[1][0]
-    #             other_objy = other_obj[1][1]
-
-    #             if (A[0] <= other_objx <= B[0] and A[1] <= other_objy <= B[1]) or \
-    #                (A[0] <= other_objx <= B[0] and B[1] <= other_objy <= A[1]) or \
-    #                (B[0] <= other_objx <= A[0] and B[1] <= other_objy <= A[1]) or \
-    #                (B[0] <= other_objx <= A[0] and A[1] <= other_objy <= B[1]):
-    #                 between_count += 1
-
-    #         answer = between_count + 4
-    #     elif subtype == 1:
-    #         """is-on-band->yes/no"""
-            
-    #         grace_threshold = 12  # half of the size of objects
-    #         epsilon = 1e-10  
-    #         m = (B[1]-A[1])/((B[0]-A[0]) + epsilon ) # add epsilon to prevent dividing by zero
-    #         c = A[1] - (m*A[0])
-
-    #         answer = 1  # default answer is 'no'
-
-    #         # check if any object lies on/close the line between object A and object B
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
-
-    #             other_obj_pos = other_obj[1]
-                
-    #             # y = mx + c
-    #             y = (m*other_obj_pos[0]) + c
-    #             if (y - grace_threshold)  <= other_obj_pos[1] <= (y + grace_threshold):
-    #                 answer = 0
-    #     elif subtype == 2:
-    #         """count-obtuse-triangles->1~6"""
-
-    #         obtuse_count = 0
-
-    #         # disable warnings
-    #         # the angle computation may fail if the points are on a line
-    #         warnings.filterwarnings("ignore")
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
-
-    #             # get position of 3rd object
-    #             C = other_obj[1]
-    #             # edge length
-    #             a = np.linalg.norm(B - C)
-    #             b = np.linalg.norm(C - A)
-    #             c = np.linalg.norm(A - B)
-    #             # angles by law of cosine
-    #             alpha = np.rad2deg(np.arccos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)))
-    #             beta = np.rad2deg(np.arccos((a ** 2 + c ** 2 - b ** 2) / (2 * a * c)))
-    #             gamma = np.rad2deg(np.arccos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
-    #             max_angle = max(alpha, beta, gamma)
-    #             if max_angle >= 90 and max_angle < 180:
-    #                 obtuse_count += 1
-
-    #         warnings.filterwarnings("default")
-    #         answer = obtuse_count + 4
-
-    #     ternary_answers.append(answer)
-
-    # ternary_relations = (ternary_questions, ternary_answers)
     binary_relations = (binary_questions, binary_answers)
     norelations = (norel_questions, norel_answers)
     
     img = img/255.
-    # dataset = (img, ternary_relations, binary_relations, norelations)
     dataset = (img, binary_relations, norelations)
     return dataset
 
@@ -272,10 +168,6 @@ print('building test datasets...')
 test_datasets = [build_dataset() for _ in range(test_size)]
 print('building train datasets...')
 train_datasets = [build_dataset() for _ in range(train_size)]
-
-
-#img_count = 0
-#cv2.imwrite(os.path.join(dirs,'{}.png'.format(img_count)), cv2.resize(train_datasets[0][0]*255, (512,512)))
 
 
 print('saving datasets...')
