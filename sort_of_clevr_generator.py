@@ -26,7 +26,7 @@ q_type_idx = 6
 sub_q_type_idx = 8
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
-nb_questions = 10
+nb_questions = 20 
 dirs = './data'
 
 colors = [
