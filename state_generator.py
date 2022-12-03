@@ -62,7 +62,7 @@ def center_generate(objects):
 
 def build_dataset(index, df):
     objects = []
-    img = np.ones((img_size, img_size, 3)) * 255
+    img = np.ones((1, 1, 3)) * 4 #this should match the desired shape of state description dataset
     for color_id, color in enumerate(colors):
         center = center_generate(objects)
         if random.random() < 0.5:

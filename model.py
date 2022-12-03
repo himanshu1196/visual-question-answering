@@ -482,14 +482,17 @@ class StateRN(BasicModel):
 
         """g"""
         mb = x.size()[0]
-        # n_channels = x.size()[3]
+        n_channels = x.size()[1]
+        print(n_channels)
         # d1 = x.size()[2]
         # d2 = 1
-        d = 4
+        d = x.size()[2]
+        print(d)
 
-        # x_flat = x.view(mb, n_channels, d1 * d2).permute(0, 2, 1)
+        x_flat = x.view(mb, n_channels, d * d).permute(0, 2, 1)
 
-        x_flat = x
+        # x_flat = x
+        #4 dimensions?
 
         # add coordinates
         # x_flat = torch.cat([x_flat, self.coord_tensor], 2)
@@ -497,16 +500,18 @@ class StateRN(BasicModel):
 
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)  # (64,11) -> (64,1,11)
-        qst = qst.repeat(1, 4, 1)  # 64 x 4 x 11
+        qst = qst.repeat(1, 3, 1)  # 64 x 4 x 11
         qst = torch.unsqueeze(qst, 2)  # 64 x 4 x 1 x 11
 
         # cast all pairs against each other
         # x_flat: 64 x 24 x 6
         x_i = torch.unsqueeze(x_flat, 1)  # 64 x 1 x 4 x 6
-        x_i = x_i.repeat(1, 25, 1, 1)  # 64 x 4 x 4 x 6
+        print(x_i.ndim)
+        x_i = x_i.repeat(1, 6, 1, 1)  # 64 x 4 x 4 x 6
         x_j = torch.unsqueeze(x_flat, 2)  # 64 x 4 x 1 x 6
+        print(x_j.ndim)
         x_j = torch.cat([x_j, qst], 3)  # 64 x 4 x 1 x (6 + 11)
-        x_j = x_j.repeat(1, 1, 25, 1)  # 64 x 4 x 4 x (6 + 11)
+        x_j = x_j.repeat(1, 1, 3, 1)  # 64 x 4 x 4 x (6 + 11)
 
         # concatenate all together
         x_full = torch.cat([x_i, x_j], 3)  # 64 x 4 x 4 x ((6) + (6 + 11))
