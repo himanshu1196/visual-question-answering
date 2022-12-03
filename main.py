@@ -52,6 +52,8 @@ if args.model=='CNN_MLP':
   model = CNN_MLP(args)
 elif args.model=='Original_RN':
   model = BiggerRN(args)
+elif args.model == 'State_RN':
+  model = StateRN(args)
 else:
   model = RN(args)
   
@@ -116,18 +118,18 @@ def train(epoch, ternary, rel, norel):
         if args.relation_type == 'ternary':
             tensor_data(ternary, batch_idx)
             accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)
-        acc_ternary.append(accuracy_ternary.item())
-        l_ternary.append(loss_ternary.item())
+        acc_ternary.append(accuracy_ternary)
+        l_ternary.append(loss_ternary)
 
         tensor_data(rel, batch_idx)
         accuracy_rel, loss_binary = model.train_(input_img, input_qst, label)
-        acc_rels.append(accuracy_rel.item())
-        l_binary.append(loss_binary.item())
+        acc_rels.append(accuracy_rel)
+        l_binary.append(loss_binary)
 
         tensor_data(norel, batch_idx)
         accuracy_norel, loss_unary = model.train_(input_img, input_qst, label)
-        acc_norels.append(accuracy_norel.item())
-        l_unary.append(loss_unary.item())
+        acc_norels.append(accuracy_norel)
+        l_unary.append(loss_unary)
 
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)] '
@@ -186,18 +188,18 @@ def test(epoch, ternary, rel, norel):
         if args.relation_type == 'ternary':
             tensor_data(ternary, batch_idx)
             acc_ter, l_ter = model.test_(input_img, input_qst, label)
-        accuracy_ternary.append(acc_ter.item())
-        loss_ternary.append(l_ter.item())
+        accuracy_ternary.append(acc_ter)
+        loss_ternary.append(l_ter)
 
         tensor_data(rel, batch_idx)
         acc_bin, l_bin = model.test_(input_img, input_qst, label)
-        accuracy_rels.append(acc_bin.item())
-        loss_binary.append(l_bin.item())
+        accuracy_rels.append(acc_bin)
+        loss_binary.append(l_bin)
 
         tensor_data(norel, batch_idx)
         acc_un, l_un = model.test_(input_img, input_qst, label)
-        accuracy_norels.append(acc_un.item())
-        loss_unary.append(l_un.item())
+        accuracy_norels.append(acc_un)
+        loss_unary.append(l_un)
 
     accuracy_ternary = sum(accuracy_ternary) / len(accuracy_ternary)
     accuracy_rel = sum(accuracy_rels) / len(accuracy_rels)

@@ -2,10 +2,12 @@ import cv2
 import os
 import numpy as np
 import random
-#import cPickle as pickle
+# import cPickle as pickle
 import pickle
 import warnings
 import argparse
+
+import pandas as pd
 
 parser = argparse.ArgumentParser(description='Sort-of-CLEVR dataset generator')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
@@ -21,77 +23,77 @@ train_size = 9800
 test_size = 200
 img_size = 75
 size = 5
-question_size = 11  ## 1 x (6 for one-hot vector of color), 2 for question type, 3 for question subtype
-q_type_idx = 6
-sub_q_type_idx = 8
+question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
+q_type_idx = 12
+sub_q_type_idx = 15
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
 nb_questions = 10
 dirs = './data'
 
 colors = [
-    (0,0,255),##r
-    (0,255,0),##g
-    (255,0,0),##b
-    (0,156,255),##o
-    (128,128,128),##k
-    (0,255,255)##y
+    (0, 0, 255),  ##r
+    (0, 255, 0),  ##g
+    (255, 0, 0),  ##b
+    (0, 156, 255),  ##o
+    (128, 128, 128),  ##k
+    (0, 255, 255)  ##y
 ]
 
+materials = ['shiny', 'smooth', 'matte']
 
 try:
     os.makedirs(dirs)
 except:
     print('directory {} already exists'.format(dirs))
 
-#pick random centers until new object does not overlap with existing objects
+
 def center_generate(objects):
     while True:
         pas = True
-        center = np.random.randint(0+size, img_size - size, 2)        
+        center = np.random.randint(0 + size, img_size - size, 2)
         if len(objects) > 0:
-            for name,c,shape in objects:
+            for name, c, shape in objects:
                 if ((center - c) ** 2).sum() < ((size * 2) ** 2):
                     pas = False
         if pas:
             return center
 
 
-
-def build_dataset():
+def build_dataset(index, df):
     objects = []
-    img = np.ones((img_size,img_size,3)) * 255
-    
-    #generate 1 object of each color, random shape (Square/Circle), random center, size = 5 
-    for color_id,color in enumerate(colors):  
+    img = np.ones((img_size, img_size, 3)) * 255
+    for color_id, color in enumerate(colors):
         center = center_generate(objects)
-        if random.random()<0.5:
-            start = (center[0]-size, center[1]-size)
-            end = (center[0]+size, center[1]+size)
+        if random.random() < 0.5:
+            start = (center[0] - size, center[1] - size)
+            end = (center[0] + size, center[1] + size)
             cv2.rectangle(img, start, end, color, -1)
-            objects.append((color_id,center,'r'))
+            objects.append((color_id, center, 'r'))
+            # state description
+            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'rectangle', size]
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
-            objects.append((color_id,center,'c'))
+            objects.append((color_id, center, 'c'))
+            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'circle', size]
 
-
-    # ternary_questions = []
+    ternary_questions = []
     binary_questions = []
     norel_questions = []
-    # ternary_answers = []
+    ternary_answers = []
     binary_answers = []
     norel_answers = []
     """Non-relational questions"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
-        color = random.randint(0,5)
+        color = random.randint(0, 5)
         question[color] = 1
         question[q_type_idx] = 1
-        subtype = random.randint(0,2)
-        question[subtype+sub_q_type_idx] = 1
+        subtype = random.randint(0, 2)
+        question[subtype + sub_q_type_idx] = 1
         norel_questions.append(question)
-        """Answer : [yes, no, rectangle, circle, 0, 1, 2, 3, 4, 5]"""
+        """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
         if subtype == 0:
             """query shape->rectangle/circle"""
             if objects[color][2] == 'r':
@@ -113,15 +115,15 @@ def build_dataset():
             else:
                 answer = 1
         norel_answers.append(answer)
-    
+
     """Binary Relational questions"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
-        color = random.randint(0,5)
+        color = random.randint(0, 5)
         question[color] = 1
-        question[q_type_idx+1] = 1
-        subtype = random.randint(0,2)
-        question[subtype+sub_q_type_idx] = 1
+        question[q_type_idx + 1] = 1
+        subtype = random.randint(0, 2)
+        question[subtype + sub_q_type_idx] = 1
         binary_questions.append(question)
 
         if subtype == 0:
@@ -134,7 +136,7 @@ def build_dataset():
                 answer = 2
             else:
                 answer = 3
-                
+
         elif subtype == 1:
             """furthest-from->rectangle/circle"""
             my_obj = objects[color][1]
@@ -147,139 +149,144 @@ def build_dataset():
 
         elif subtype == 2:
             """count->1~6"""
-            #how many objects have the same shape as my-object
             my_obj = objects[color][2]
             count = -1
             for obj in objects:
                 if obj[2] == my_obj:
-                    count +=1 
-            answer = count+4
+                    count += 1
+            answer = count + 4
 
-        #answer is an int  between 0 and 9, needs to be one-hot encoded
         binary_answers.append(answer)
 
-    # """Ternary Relational questions"""
-    # for _ in range(nb_questions):
-    #     question = np.zeros((question_size))
-    #     rnd_colors = np.random.permutation(np.arange(5))
-    #     # 1st object
-    #     color1 = rnd_colors[0]
-    #     question[color1] = 1
-    #     # 2nd object
-    #     color2 = rnd_colors[1]
-    #     question[6 + color2] = 1
+    """Ternary Relational questions"""
+    for _ in range(nb_questions):
+        question = np.zeros((question_size))
+        rnd_colors = np.random.permutation(np.arange(5))
+        # 1st object
+        color1 = rnd_colors[0]
+        question[color1] = 1
+        # 2nd object
+        color2 = rnd_colors[1]
+        question[6 + color2] = 1
 
-    #     question[q_type_idx + 2] = 1
-        
-    #     if args.t_subtype >= 0 and args.t_subtype < 3:
-    #         subtype = args.t_subtype
-    #     else:
-    #         subtype = random.randint(0, 2)
+        question[q_type_idx + 2] = 1
 
-    #     question[subtype+sub_q_type_idx] = 1
-    #     ternary_questions.append(question)
+        if args.t_subtype >= 0 and args.t_subtype < 3:
+            subtype = args.t_subtype
+        else:
+            subtype = random.randint(0, 2)
 
-    #     # get coordiates of object from question
-    #     A = objects[color1][1]
-    #     B = objects[color2][1]
+        question[subtype + sub_q_type_idx] = 1
+        ternary_questions.append(question)
 
-    #     if subtype == 0:
-    #         """between->1~4"""
+        # get coordiates of object from question
+        A = objects[color1][1]
+        B = objects[color2][1]
 
-    #         between_count = 0 
-    #         # check is any objects lies inside the box
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
+        if subtype == 0:
+            """between->1~4"""
 
-    #             # Get x and y coordinate of third object
-    #             other_objx = other_obj[1][0]
-    #             other_objy = other_obj[1][1]
+            between_count = 0
+            # check is any objects lies inside the box
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
 
-    #             if (A[0] <= other_objx <= B[0] and A[1] <= other_objy <= B[1]) or \
-    #                (A[0] <= other_objx <= B[0] and B[1] <= other_objy <= A[1]) or \
-    #                (B[0] <= other_objx <= A[0] and B[1] <= other_objy <= A[1]) or \
-    #                (B[0] <= other_objx <= A[0] and A[1] <= other_objy <= B[1]):
-    #                 between_count += 1
+                # Get x and y coordinate of third object
+                other_objx = other_obj[1][0]
+                other_objy = other_obj[1][1]
 
-    #         answer = between_count + 4
-    #     elif subtype == 1:
-    #         """is-on-band->yes/no"""
-            
-    #         grace_threshold = 12  # half of the size of objects
-    #         epsilon = 1e-10  
-    #         m = (B[1]-A[1])/((B[0]-A[0]) + epsilon ) # add epsilon to prevent dividing by zero
-    #         c = A[1] - (m*A[0])
+                if (A[0] <= other_objx <= B[0] and A[1] <= other_objy <= B[1]) or \
+                        (A[0] <= other_objx <= B[0] and B[1] <= other_objy <= A[1]) or \
+                        (B[0] <= other_objx <= A[0] and B[1] <= other_objy <= A[1]) or \
+                        (B[0] <= other_objx <= A[0] and A[1] <= other_objy <= B[1]):
+                    between_count += 1
 
-    #         answer = 1  # default answer is 'no'
+            answer = between_count + 4
+        elif subtype == 1:
+            """is-on-band->yes/no"""
 
-    #         # check if any object lies on/close the line between object A and object B
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
+            grace_threshold = 12  # half of the size of objects
+            epsilon = 1e-10
+            m = (B[1] - A[1]) / ((B[0] - A[0]) + epsilon)  # add epsilon to prevent dividing by zero
+            c = A[1] - (m * A[0])
 
-    #             other_obj_pos = other_obj[1]
-                
-    #             # y = mx + c
-    #             y = (m*other_obj_pos[0]) + c
-    #             if (y - grace_threshold)  <= other_obj_pos[1] <= (y + grace_threshold):
-    #                 answer = 0
-    #     elif subtype == 2:
-    #         """count-obtuse-triangles->1~6"""
+            answer = 1  # default answer is 'no'
 
-    #         obtuse_count = 0
+            # check if any object lies on/close the line between object A and object B
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
 
-    #         # disable warnings
-    #         # the angle computation may fail if the points are on a line
-    #         warnings.filterwarnings("ignore")
-    #         for other_obj in objects:
-    #             # skip object A and B
-    #             if (other_obj[0] == color1) or (other_obj[0] == color2):
-    #                 continue
+                other_obj_pos = other_obj[1]
 
-    #             # get position of 3rd object
-    #             C = other_obj[1]
-    #             # edge length
-    #             a = np.linalg.norm(B - C)
-    #             b = np.linalg.norm(C - A)
-    #             c = np.linalg.norm(A - B)
-    #             # angles by law of cosine
-    #             alpha = np.rad2deg(np.arccos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)))
-    #             beta = np.rad2deg(np.arccos((a ** 2 + c ** 2 - b ** 2) / (2 * a * c)))
-    #             gamma = np.rad2deg(np.arccos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
-    #             max_angle = max(alpha, beta, gamma)
-    #             if max_angle >= 90 and max_angle < 180:
-    #                 obtuse_count += 1
+                # y = mx + c
+                y = (m * other_obj_pos[0]) + c
+                if (y - grace_threshold) <= other_obj_pos[1] <= (y + grace_threshold):
+                    answer = 0
+        elif subtype == 2:
+            """count-obtuse-triangles->1~6"""
 
-    #         warnings.filterwarnings("default")
-    #         answer = obtuse_count + 4
+            obtuse_count = 0
 
-    #     ternary_answers.append(answer)
+            # disable warnings
+            # the angle computation may fail if the points are on a line
+            warnings.filterwarnings("ignore")
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
 
-    # ternary_relations = (ternary_questions, ternary_answers)
+                # get position of 3rd object
+                C = other_obj[1]
+                # edge length
+                a = np.linalg.norm(B - C)
+                b = np.linalg.norm(C - A)
+                c = np.linalg.norm(A - B)
+                # angles by law of cosine
+                alpha = np.rad2deg(np.arccos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)))
+                beta = np.rad2deg(np.arccos((a ** 2 + c ** 2 - b ** 2) / (2 * a * c)))
+                gamma = np.rad2deg(np.arccos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
+                max_angle = max(alpha, beta, gamma)
+                if max_angle >= 90 and max_angle < 180:
+                    obtuse_count += 1
+
+            warnings.filterwarnings("default")
+            answer = obtuse_count + 4
+
+        ternary_answers.append(answer)
+
+    ternary_relations = (ternary_questions, ternary_answers)
     binary_relations = (binary_questions, binary_answers)
     norelations = (norel_questions, norel_answers)
-    
-    img = img/255.
-    # dataset = (img, ternary_relations, binary_relations, norelations)
-    dataset = (img, binary_relations, norelations)
+
+    img = img / 255.
+    dataset = (img, ternary_relations, binary_relations, norelations)
     return dataset
 
 
 print('building test datasets...')
-test_datasets = [build_dataset() for _ in range(test_size)]
+COLUMNS = ['img_id', 'obj_id', '(x, y)', 'color', 'shape', 'size']
+scene_description_test = pd.DataFrame(columns=COLUMNS)
+
+test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
+print(scene_description_test)
+scene_description_train = pd.DataFrame(columns=COLUMNS)
 print('building train datasets...')
-train_datasets = [build_dataset() for _ in range(train_size)]
+train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
+print(scene_description_train)
 
+scene_description_test.to_csv("test_descriptions.csv")
+scene_description_train.to_csv("train_descriptions.csv")
 
-#img_count = 0
-#cv2.imwrite(os.path.join(dirs,'{}.png'.format(img_count)), cv2.resize(train_datasets[0][0]*255, (512,512)))
+# img_count = 0
+# cv2.imwrite(os.path.join(dirs,'{}.png'.format(img_count)), cv2.resize(train_datasets[0][0]*255, (512,512)))
 
 
 print('saving datasets...')
-filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
+filename = os.path.join(dirs, 'sort-of-clevr.pickle')
 with  open(filename, 'wb') as f:
     pickle.dump((train_datasets, test_datasets), f)
 print('datasets saved at {}'.format(filename))
