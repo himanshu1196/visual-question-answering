@@ -1,296 +1,292 @@
-"""""""""
-Pytorch implementation of "A simple neural network module for relational reasoning
-Code is based on pytorch/examples/mnist (https://github.com/pytorch/examples/tree/master/mnist)
-"""""""""
-from __future__ import print_function
-import argparse
+import cv2
 import os
+import numpy as np
+import random
 # import cPickle as pickle
 import pickle
-import random
-import numpy as np
-import csv
+import warnings
+import argparse
 
-import torch
-from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
+import pandas as pd
 
-from model import RN, BiggerRN, CNN_MLP
-
-# Training settings
-parser = argparse.ArgumentParser(description='PyTorch Relational-Network sort-of-CLVR Example')
-parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP'], default='RN',
-                    help='resume from model stored')
-parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                    help='input batch size for training (default: 64)')
-parser.add_argument('--epochs', type=int, default=20, metavar='N',
-                    help='number of epochs to train (default: 20)')
-parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
-                    help='learning rate (default: 0.0001)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='disables CUDA training')
+parser = argparse.ArgumentParser(description='Sort-of-CLEVR dataset generator')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-                    help='how many batches to wait before logging training status')
-parser.add_argument('--resume', type=str,
-                    help='resume from model stored')
-parser.add_argument('--relation_type', type=str, default='binary',
-                    help='what kind of relations to learn. options: binary, ternary (default: binary)')
-
+parser.add_argument('--t-subtype', type=int, default=-1,
+                    help='Force ternary questions to be of a given type')
 args = parser.parse_args()
-args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-torch.manual_seed(args.seed)
-if args.cuda:
-    torch.cuda.manual_seed(args.seed)
+random.seed(args.seed)
+np.random.seed(args.seed)
 
-summary_writer = SummaryWriter()
+train_size = 9800
+test_size = 200
+img_size = 75
+size = 5
+question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
+q_type_idx = 12
+sub_q_type_idx = 15
+"""Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
-if args.model == 'CNN_MLP':
-    model = CNN_MLP(args)
-elif args.model == 'Original_RN':
-    model = BiggerRN(args)
-elif args.model == 'State_RN':
-    model = StateRN(args)
-else:
-    model = RN(args)
+nb_questions = 10
+dirs = './data'
 
-model_dirs = './model'
-bs = args.batch_size
-input_img = torch.FloatTensor(bs, 3, 75, 75)
-input_qst = torch.FloatTensor(bs, 11)
-label = torch.LongTensor(bs)
+colors = [
+    (0, 0, 255),  ##r
+    (0, 255, 0),  ##g
+    (255, 0, 0),  ##b
+    (0, 156, 255),  ##o
+    (128, 128, 128),  ##k
+    (0, 255, 255)  ##y
+]
 
-if args.cuda:
-    model.cuda()
-    input_img = input_img.cuda()
-    input_qst = input_qst.cuda()
-    label = label.cuda()
-
-input_img = Variable(input_img)
-input_qst = Variable(input_qst)
-label = Variable(label)
-
-
-def tensor_data(data, i):
-    img = torch.from_numpy(np.asarray(data[0][bs * i:bs * (i + 1)]))
-    qst = torch.from_numpy(np.asarray(data[1][bs * i:bs * (i + 1)]))
-    ans = torch.from_numpy(np.asarray(data[2][bs * i:bs * (i + 1)]))
-
-    input_img.data.resize_(img.size()).copy_(img)
-    input_qst.data.resize_(qst.size()).copy_(qst)
-    label.data.resize_(ans.size()).copy_(ans)
-
-
-def cvt_data_axis(data):
-    img = [e[0] for e in data]
-    qst = [e[1] for e in data]
-    ans = [e[2] for e in data]
-    return (img, qst, ans)
-
-
-def train(epoch, ternary, rel, norel):
-    model.train()
-
-    if not len(rel[0]) == len(norel[0]):
-        print('Not equal length for relation dataset and non-relation dataset.')
-        return
-
-    random.shuffle(ternary)
-    random.shuffle(rel)
-    random.shuffle(norel)
-
-    ternary = cvt_data_axis(ternary)
-    rel = cvt_data_axis(rel)
-    norel = cvt_data_axis(norel)
-
-    acc_ternary = []
-    acc_rels = []
-    acc_norels = []
-
-    l_ternary = []
-    l_binary = []
-    l_unary = []
-
-    for batch_idx in range(len(rel[0]) // bs):
-        accuracy_ternary, loss_ternary = -1., -1.
-        if args.relation_type == 'ternary':
-            tensor_data(ternary, batch_idx)
-            accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)
-        acc_ternary.append(accuracy_ternary)
-        l_ternary.append(loss_ternary)
-
-        tensor_data(rel, batch_idx)
-        accuracy_rel, loss_binary = model.train_(input_img, input_qst, label)
-        acc_rels.append(accuracy_rel)
-        l_binary.append(loss_binary)
-
-        tensor_data(norel, batch_idx)
-        accuracy_norel, loss_unary = model.train_(input_img, input_qst, label)
-        acc_norels.append(accuracy_norel)
-        l_unary.append(loss_unary)
-
-        if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)] '
-                  'Ternary accuracy: {:.0f}% | Relations accuracy: {:.0f}% | Non-relations accuracy: {:.0f}%'.format(
-                epoch,
-                batch_idx * bs * 2,
-                len(rel[0]) * 2,
-                100. * batch_idx * bs / len(rel[0]),
-                accuracy_ternary,
-                accuracy_rel,
-                accuracy_norel))
-
-    avg_acc_ternary = sum(acc_ternary) / len(acc_ternary)
-    avg_acc_binary = sum(acc_rels) / len(acc_rels)
-    avg_acc_unary = sum(acc_norels) / len(acc_norels)
-
-    summary_writer.add_scalars('Accuracy/train', {
-        'ternary': avg_acc_ternary,
-        'binary': avg_acc_binary,
-        'unary': avg_acc_unary
-    }, epoch)
-
-    avg_loss_ternary = sum(l_ternary) / len(l_ternary)
-    avg_loss_binary = sum(l_binary) / len(l_binary)
-    avg_loss_unary = sum(l_unary) / len(l_unary)
-
-    summary_writer.add_scalars('Loss/train', {
-        'ternary': avg_loss_ternary,
-        'binary': avg_loss_binary,
-        'unary': avg_loss_unary
-    }, epoch)
-
-    # return average accuracy
-    return avg_acc_ternary, avg_acc_binary, avg_acc_unary
-
-
-def test(epoch, ternary, rel, norel):
-    model.eval()
-    if not len(rel[0]) == len(norel[0]):
-        print('Not equal length for relation dataset and non-relation dataset.')
-        return
-
-    ternary = cvt_data_axis(ternary)
-    rel = cvt_data_axis(rel)
-    norel = cvt_data_axis(norel)
-
-    accuracy_ternary = []
-    accuracy_rels = []
-    accuracy_norels = []
-
-    loss_ternary = []
-    loss_binary = []
-    loss_unary = []
-
-    for batch_idx in range(len(rel[0]) // bs):
-        acc_ter, l_ter = -1., -1.
-        if args.relation_type == 'ternary':
-            tensor_data(ternary, batch_idx)
-            acc_ter, l_ter = model.test_(input_img, input_qst, label)
-        accuracy_ternary.append(acc_ter)
-        loss_ternary.append(l_ter)
-
-        tensor_data(rel, batch_idx)
-        acc_bin, l_bin = model.test_(input_img, input_qst, label)
-        accuracy_rels.append(acc_bin)
-        loss_binary.append(l_bin)
-
-        tensor_data(norel, batch_idx)
-        acc_un, l_un = model.test_(input_img, input_qst, label)
-        accuracy_norels.append(acc_un)
-        loss_unary.append(l_un)
-
-    accuracy_ternary = sum(accuracy_ternary) / len(accuracy_ternary)
-    accuracy_rel = sum(accuracy_rels) / len(accuracy_rels)
-    accuracy_norel = sum(accuracy_norels) / len(accuracy_norels)
-    print('\n Test set: Ternary accuracy: {:.0f}% Binary accuracy: {:.0f}% | Unary accuracy: {:.0f}%\n'.format(
-        accuracy_ternary, accuracy_rel, accuracy_norel))
-
-    summary_writer.add_scalars('Accuracy/test', {
-        'ternary': accuracy_ternary,
-        'binary': accuracy_rel,
-        'unary': accuracy_norel
-    }, epoch)
-
-    loss_ternary = sum(loss_ternary) / len(loss_ternary)
-    loss_binary = sum(loss_binary) / len(loss_binary)
-    loss_unary = sum(loss_unary) / len(loss_unary)
-
-    summary_writer.add_scalars('Loss/test', {
-        'ternary': loss_ternary,
-        'binary': loss_binary,
-        'unary': loss_unary
-    }, epoch)
-
-    return accuracy_ternary, accuracy_rel, accuracy_norel
-
-
-def load_data():
-    print('loading data...')
-    dirs = './data'
-    # filename = os.path.join(dirs,'sort-of-clevr.pickle')
-    filename = os.path.join(dirs, 'sort-of-clevr-original.pickle')
-    with open(filename, 'rb') as f:
-        train_datasets, test_datasets = pickle.load(f)
-    ternary_train = []
-    ternary_test = []
-    rel_train = []
-    rel_test = []
-    norel_train = []
-    norel_test = []
-    print('processing data...')
-
-    for img, relations, norelations in train_datasets:
-        img = np.swapaxes(img, 0, 2)
-        # for qst, ans in zip(ternary[0], ternary[1]):
-        #     ternary_train.append((img,qst,ans))
-        for qst, ans in zip(relations[0], relations[1]):
-            rel_train.append((img, qst, ans))
-        for qst, ans in zip(norelations[0], norelations[1]):
-            norel_train.append((img, qst, ans))
-
-    for img, relations, norelations in test_datasets:
-        img = np.swapaxes(img, 0, 2)
-        # for qst, ans in zip(ternary[0], ternary[1]):
-        #     ternary_test.append((img, qst, ans))
-        for qst, ans in zip(relations[0], relations[1]):
-            rel_test.append((img, qst, ans))
-        for qst, ans in zip(norelations[0], norelations[1]):
-            norel_test.append((img, qst, ans))
-
-    return (ternary_train, ternary_test, rel_train, rel_test, norel_train, norel_test)
-
-
-ternary_train, ternary_test, rel_train, rel_test, norel_train, norel_test = load_data()
+materials = ['shiny', 'smooth', 'matte']
 
 try:
-    os.makedirs(model_dirs)
+    os.makedirs(dirs)
 except:
-    print('directory {} already exists'.format(model_dirs))
+    print('directory {} already exists'.format(dirs))
 
-if args.resume:
-    filename = os.path.join(model_dirs, args.resume)
-    if os.path.isfile(filename):
-        print('==> loading checkpoint {}'.format(filename))
-        checkpoint = torch.load(filename)
-        model.load_state_dict(checkpoint)
-        print('==> loaded checkpoint {}'.format(filename))
 
-with open(f'./{args.model}_{args.seed}_log.csv', 'w') as log_file:
-    csv_writer = csv.writer(log_file, delimiter=',')
-    csv_writer.writerow(['epoch', 'train_acc_ternary', 'train_acc_rel',
-                         'train_acc_norel', 'test_acc_ternary', 'test_acc_rel', 'test_acc_norel'])
+def center_generate(objects):
+    while True:
+        pas = True
+        center = np.random.randint(0 + size, img_size - size, 2)
+        if len(objects) > 0:
+            for name, c, shape in objects:
+                if ((center - c) ** 2).sum() < ((size * 2) ** 2):
+                    pas = False
+        if pas:
+            return center
 
-    print(f"Training {args.model} {f'({args.relation_type})' if args.model == 'RN' else ''} model...")
 
-    for epoch in range(1, args.epochs + 1):
-        train_acc_ternary, train_acc_binary, train_acc_unary = train(
-            epoch, ternary_train, rel_train, norel_train)
-        test_acc_ternary, test_acc_binary, test_acc_unary = test(
-            epoch, ternary_test, rel_test, norel_test)
+def build_dataset(index, df):
+    objects = []
+    img = np.ones((img_size, img_size, 3)) * 255
+    for color_id, color in enumerate(colors):
+        center = center_generate(objects)
+        if random.random() < 0.5:
+            start = (center[0] - size, center[1] - size)
+            end = (center[0] + size, center[1] + size)
+            cv2.rectangle(img, start, end, color, -1)
+            objects.append((color_id, center, 'r'))
+            # state description
+            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'rectangle', size]
+        else:
+            center_ = (center[0], center[1])
+            cv2.circle(img, center_, size, color, -1)
+            objects.append((color_id, center, 'c'))
+            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'circle', size]
 
-        csv_writer.writerow([epoch, train_acc_ternary, train_acc_binary,
-                             train_acc_unary, test_acc_ternary, test_acc_binary, test_acc_unary])
-        model.save_model(epoch)
+    ternary_questions = []
+    binary_questions = []
+    norel_questions = []
+    ternary_answers = []
+    binary_answers = []
+    norel_answers = []
+    """Non-relational questions"""
+    for _ in range(nb_questions):
+        question = np.zeros((question_size))
+        color = random.randint(0, 5)
+        question[color] = 1
+        question[q_type_idx] = 1
+        subtype = random.randint(0, 2)
+        question[subtype + sub_q_type_idx] = 1
+        norel_questions.append(question)
+        """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
+        if subtype == 0:
+            """query shape->rectangle/circle"""
+            if objects[color][2] == 'r':
+                answer = 2
+            else:
+                answer = 3
+
+        elif subtype == 1:
+            """query horizontal position->yes/no"""
+            if objects[color][1][0] < img_size / 2:
+                answer = 0
+            else:
+                answer = 1
+
+        elif subtype == 2:
+            """query vertical position->yes/no"""
+            if objects[color][1][1] < img_size / 2:
+                answer = 0
+            else:
+                answer = 1
+        norel_answers.append(answer)
+
+    """Binary Relational questions"""
+    for _ in range(nb_questions):
+        question = np.zeros((question_size))
+        color = random.randint(0, 5)
+        question[color] = 1
+        question[q_type_idx + 1] = 1
+        subtype = random.randint(0, 2)
+        question[subtype + sub_q_type_idx] = 1
+        binary_questions.append(question)
+
+        if subtype == 0:
+            """closest-to->rectangle/circle"""
+            my_obj = objects[color][1]
+            dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
+            dist_list[dist_list.index(0)] = 999
+            closest = dist_list.index(min(dist_list))
+            if objects[closest][2] == 'r':
+                answer = 2
+            else:
+                answer = 3
+
+        elif subtype == 1:
+            """furthest-from->rectangle/circle"""
+            my_obj = objects[color][1]
+            dist_list = [((my_obj - obj[1]) ** 2).sum() for obj in objects]
+            furthest = dist_list.index(max(dist_list))
+            if objects[furthest][2] == 'r':
+                answer = 2
+            else:
+                answer = 3
+
+        elif subtype == 2:
+            """count->1~6"""
+            my_obj = objects[color][2]
+            count = -1
+            for obj in objects:
+                if obj[2] == my_obj:
+                    count += 1
+            answer = count + 4
+
+        binary_answers.append(answer)
+
+    """Ternary Relational questions"""
+    for _ in range(nb_questions):
+        question = np.zeros((question_size))
+        rnd_colors = np.random.permutation(np.arange(5))
+        # 1st object
+        color1 = rnd_colors[0]
+        question[color1] = 1
+        # 2nd object
+        color2 = rnd_colors[1]
+        question[6 + color2] = 1
+
+        question[q_type_idx + 2] = 1
+
+        if args.t_subtype >= 0 and args.t_subtype < 3:
+            subtype = args.t_subtype
+        else:
+            subtype = random.randint(0, 2)
+
+        question[subtype + sub_q_type_idx] = 1
+        ternary_questions.append(question)
+
+        # get coordiates of object from question
+        A = objects[color1][1]
+        B = objects[color2][1]
+
+        if subtype == 0:
+            """between->1~4"""
+
+            between_count = 0
+            # check is any objects lies inside the box
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
+
+                # Get x and y coordinate of third object
+                other_objx = other_obj[1][0]
+                other_objy = other_obj[1][1]
+
+                if (A[0] <= other_objx <= B[0] and A[1] <= other_objy <= B[1]) or \
+                        (A[0] <= other_objx <= B[0] and B[1] <= other_objy <= A[1]) or \
+                        (B[0] <= other_objx <= A[0] and B[1] <= other_objy <= A[1]) or \
+                        (B[0] <= other_objx <= A[0] and A[1] <= other_objy <= B[1]):
+                    between_count += 1
+
+            answer = between_count + 4
+        elif subtype == 1:
+            """is-on-band->yes/no"""
+
+            grace_threshold = 12  # half of the size of objects
+            epsilon = 1e-10
+            m = (B[1] - A[1]) / ((B[0] - A[0]) + epsilon)  # add epsilon to prevent dividing by zero
+            c = A[1] - (m * A[0])
+
+            answer = 1  # default answer is 'no'
+
+            # check if any object lies on/close the line between object A and object B
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
+
+                other_obj_pos = other_obj[1]
+
+                # y = mx + c
+                y = (m * other_obj_pos[0]) + c
+                if (y - grace_threshold) <= other_obj_pos[1] <= (y + grace_threshold):
+                    answer = 0
+        elif subtype == 2:
+            """count-obtuse-triangles->1~6"""
+
+            obtuse_count = 0
+
+            # disable warnings
+            # the angle computation may fail if the points are on a line
+            warnings.filterwarnings("ignore")
+            for other_obj in objects:
+                # skip object A and B
+                if (other_obj[0] == color1) or (other_obj[0] == color2):
+                    continue
+
+                # get position of 3rd object
+                C = other_obj[1]
+                # edge length
+                a = np.linalg.norm(B - C)
+                b = np.linalg.norm(C - A)
+                c = np.linalg.norm(A - B)
+                # angles by law of cosine
+                alpha = np.rad2deg(np.arccos((b ** 2 + c ** 2 - a ** 2) / (2 * b * c)))
+                beta = np.rad2deg(np.arccos((a ** 2 + c ** 2 - b ** 2) / (2 * a * c)))
+                gamma = np.rad2deg(np.arccos((a ** 2 + b ** 2 - c ** 2) / (2 * a * b)))
+                max_angle = max(alpha, beta, gamma)
+                if max_angle >= 90 and max_angle < 180:
+                    obtuse_count += 1
+
+            warnings.filterwarnings("default")
+            answer = obtuse_count + 4
+
+        ternary_answers.append(answer)
+
+    ternary_relations = (ternary_questions, ternary_answers)
+    binary_relations = (binary_questions, binary_answers)
+    norelations = (norel_questions, norel_answers)
+
+    img = img / 255.
+    dataset = (img, ternary_relations, binary_relations, norelations)
+    return dataset
+
+
+print('building test datasets...')
+COLUMNS = ['img_id', 'obj_id', '(x, y)', 'color', 'shape', 'size']
+scene_description_test = pd.DataFrame(columns=COLUMNS)
+
+test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
+print(scene_description_test)
+scene_description_train = pd.DataFrame(columns=COLUMNS)
+print('building train datasets...')
+train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
+print(scene_description_train)
+
+scene_description_test.to_csv("test_descriptions.csv")
+scene_description_train.to_csv("train_descriptions.csv")
+
+# img_count = 0
+# cv2.imwrite(os.path.join(dirs,'{}.png'.format(img_count)), cv2.resize(train_datasets[0][0]*255, (512,512)))
+
+
+print('saving datasets...')
+filename = os.path.join(dirs, 'sort-of-clevr.pickle')
+with  open(filename, 'wb') as f:
+    pickle.dump((train_datasets, test_datasets), f)
+print('datasets saved at {}'.format(filename))
