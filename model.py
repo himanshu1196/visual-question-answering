@@ -512,7 +512,7 @@ class StateRN(BasicModel):
         x_full = torch.cat([x_i, x_j], 3)  # 64 x 4 x 4 x ((6) + (6 + 11))
 
         # reshape for passing through network
-        x_ = x_full.view(mb * (d * d) * (d * d), 2 * (6) + 11)  # (64*4*4 x (2*6+11)) = (1024, 23)
+        x_ = x_full.view(mb * (d * d) * (d * d), 2 * 6 + 11)  # (64*4*4 x (2*6+11)) = (1024, 23)
 
         x_ = self.g_fc1(x_)  # 64*4*4 x 512
         x_ = F.relu(x_)
@@ -524,9 +524,9 @@ class StateRN(BasicModel):
         x_ = F.relu(x_)
 
         # reshape again and sum
-        x_g = x_.view(mb, (d * d) * (d * d), 2000)
+        x_g = x_.view(mb, (d * d) * (d * d), 512)
 
-        x_g = x_g.sum(1).squeeze()  # 64 x 2000
+        x_g = x_g.sum(1).squeeze()  # 64 x 512
 
         """f"""
         # unsure of these dimensions
