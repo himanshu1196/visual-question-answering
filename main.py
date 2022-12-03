@@ -40,6 +40,7 @@ parser.add_argument('--relation_type', type=str, default='binary',
                     help='what kind of relations to learn. options: binary, ternary (default: binary)')
 
 args = parser.parse_args()
+print('CUDA available?', torch.cuda.is_available())
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
@@ -62,6 +63,7 @@ input_qst = torch.FloatTensor(bs, 11)
 label = torch.LongTensor(bs)
 
 if args.cuda:
+    print('CUDA available?', torch.cuda.is_available())
     model.cuda()
     input_img = input_img.cuda()
     input_qst = input_qst.cuda()
@@ -112,7 +114,7 @@ def train(epoch, ternary, rel, norel):
     l_unary = []
 
     for batch_idx in range(len(rel[0]) // bs):
-        accuracy_ternary, loss_ternary = -1., -1.
+        accuracy_ternary, loss_ternary = torch.tensor(-1.), torch.tensor(-1.)
         if args.relation_type == 'ternary':
             tensor_data(ternary, batch_idx)
             accuracy_ternary, loss_ternary = model.train_(input_img, input_qst, label)

@@ -8,7 +8,7 @@ from torch.autograd import Variable
 
 class BiggerConvInputModel(nn.Module):
     def __init__(self):
-        super(ConvInputModel, self).__init__()
+        super(BiggerConvInputModel, self).__init__()
         
         self.conv1 = nn.Conv2d(3, 32, 3, stride=2, padding=1)
         self.batchNorm1 = nn.BatchNorm2d(32)
@@ -266,7 +266,7 @@ class BiggerRN(BasicModel):
         self.f_fc2 = nn.Linear(2000, 1000)
         self.f_fc3 = nn.Linear(1000, 500)
         self.f_fc4 = nn.Linear(500, 100)
-        self.f_fc4 = nn.Linear(100, 10)
+        self.f_fc5 = nn.Linear(100, 10)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
