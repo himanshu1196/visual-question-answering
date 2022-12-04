@@ -1,2 +1,1 @@
 epoch,train_acc_ternary,train_acc_rel,train_acc_norel,test_acc_ternary,test_acc_rel,test_acc_norel
-1,51.54670653638814,51.068691037735846,53.0197102425876,52.76442307692308,59.73557692307692,55.46875

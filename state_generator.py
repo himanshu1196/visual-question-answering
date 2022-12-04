@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 import random
-
+# import cPickle as pickle
 import pickle
 import warnings
 import argparse
@@ -62,22 +62,22 @@ def center_generate(objects):
 
 def build_dataset(index, df):
     objects = []
-    img = np.ones((img_size, img_size, 3)) * 255
+    img = np.ones((1, 1, 3)) * 4 #this should match the desired shape of state description dataset
     for color_id, color in enumerate(colors):
         center = center_generate(objects)
         if random.random() < 0.5:
             start = (center[0] - size, center[1] - size)
             end = (center[0] + size, center[1] + size)
-            cv2.rectangle(img, start, end, color, -1)
-            objects.append((color_id, center, 'r'))
+            # cv2.rectangle(img, start, end, color, -1)
+            # objects.append((color_id, center, 'r'))
+            objects.append((color_id,center,'r'))
             # state description
-            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'rectangle', size]
+            df.loc[len(df.index)] = [index, color_id, center, color, 'r', size]
         else:
             center_ = (center[0], center[1])
-            cv2.circle(img, center_, size, color, -1)
+            # cv2.circle(img, center_, size, color, -1)
             objects.append((color_id, center, 'c'))
-            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'circle', size]
-
+            df.loc[len(df.index)] = [index, color_id, center, color, 'c', size]
 
     binary_questions = []
     norel_questions = []
@@ -159,8 +159,8 @@ def build_dataset(index, df):
 
     binary_relations = (binary_questions, binary_answers)
     norelations = (norel_questions, norel_answers)
-    
-    img = img/255.
+
+    img = img / 255.
     dataset = (img, binary_relations, norelations)
     return dataset
 
@@ -178,6 +178,10 @@ print(scene_description_train)
 
 scene_description_test.to_csv("test_descriptions.csv")
 scene_description_train.to_csv("train_descriptions.csv")
+
+# img_count = 0
+# cv2.imwrite(os.path.join(dirs,'{}.png'.format(img_count)), cv2.resize(train_datasets[0][0]*255, (512,512)))
+
 
 print('saving datasets...')
 filename = os.path.join(dirs, 'sort-of-clevr.pickle')
