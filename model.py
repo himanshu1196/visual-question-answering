@@ -73,18 +73,17 @@ class FCOutputModel(nn.Module):
     def __init__(self):
         super(FCOutputModel, self).__init__()
 
-        # self.fc2 = nn.Linear(256, 256)
-        # self.fc3 = nn.Linear(256, 10)
-        self.fc2 = nn.Linear(1000, 500)
-        self.fc3 = nn.Linear(500, 100)
-        self.fc4 = nn.Linear(100, 10) # added
+        self.fc2 = nn.Linear(256, 256) # optimal par of pixel
+        self.fc3 = nn.Linear(256, 10)
+        # self.fc2 = nn.Linear(1000, 500)
+        # self.fc3 = nn.Linear(500, 100)
+        # self.fc4 = nn.Linear(100, 10)
 
     def forward(self, x):
         x = self.fc2(x)
         x = F.relu(x)
+        x = F.dropout(x)
         x = self.fc3(x)
-        x = F.relu(x)
-        x = self.fc4(x)
         
         return F.log_softmax(x, dim=1)
 
@@ -233,10 +232,10 @@ class BiggerRN(BasicModel):
         self.g_fc3 = nn.Linear(2000, 2000)
         self.g_fc4 = nn.Linear(2000, 2000)
 
-        # self.f_fc1 = nn.Linear(2000, 1000)
-        # self.f_fc2 = nn.Linear(2000, 1000) # delete
-        # self.f_fc3 = nn.Linear(1000, 500)
-        # self.f_fc4 = nn.Linear(500, 100)
+        self.f_fc1 = nn.Linear(2000, 1000) # after layer 2 will be called by FCOutputModel function
+        self.f_fc2 = nn.Linear(1000, 500) # delete
+        self.f_fc3 = nn.Linear(500, 100)
+        self.f_fc4 = nn.Linear(100, 10)
         # self.f_fc5 = nn.Linear(100, 10)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
@@ -261,7 +260,7 @@ class BiggerRN(BasicModel):
         self.coord_tensor.data.copy_(torch.from_numpy(np_coord_tensor))
 
 
-        self.fcout = FCOutputModel()
+        # self.fcout = FCOutputModel()
         
         self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
@@ -314,16 +313,17 @@ class BiggerRN(BasicModel):
         """f"""
         x_f = self.f_fc1(x_g) # 64 x 2000
         x_f = F.relu(x_f)
-        # x_f = self.f_fc2(x_f) # 64 x 1000
-        # x_f = F.relu(x_f)
-        # x_f = self.f_fc3(x_f) # 64 x 500
-        # x_f = F.relu(x_f)
-        # x_f = self.f_fc4(x_f) # 64 x 100
+        x_f = self.f_fc2(x_f) # 64 x 1000
+        x_f = F.relu(x_f)
+        x_f = self.f_fc3(x_f) # 64 x 500
+        x_f = F.relu(x_f)
+        x_f = self.f_fc4(x_f) # 64 x 100
         # x_f = F.relu(x_f)
         # x_f = self.f_fc5(x_f) # 64 x 10
-        # x_f = F.log_softmax(x_f, dim=1) # 64 x 10
+        x_f = F.log_softmax(x_f, dim=1) # 64 x 10
         
-        return self.fcout(x_f) #after 2 layers
+        # return self.fcout(x_f) #after 2 layers
+        return x_f #after 2 layers
 
 
 class StateRN(BasicModel):
@@ -352,9 +352,9 @@ class StateRN(BasicModel):
         # self.f_fc4 = nn.Linear(64, 10)
         
         # f function: 3 layers
-        self.f_fc1 = nn.Linear(512, 512)
+        self.f_fc1 = nn.Linear(512, 1024) #oposit?
         self.f_fc2 = nn.Linear(512, 1024)
-        self.f_fc3 = nn.Linear(1024, 29)
+        self.f_fc3 = nn.Linear(64, 10)
         # (?) #final output length depends on the answer embedding (10 in this case?)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
@@ -412,9 +412,10 @@ class StateRN(BasicModel):
         x_flat = x.view(mb, n_channels, d * d).permute(0, 2, 1) 
         # x_flat = x.view(mb, n_channels, d * d)
         # print("coord_tensor {}".format(len(self.coord_tensor)))
-        x_flat = torch.cat([x_flat, self.coord_tensor],2)
-        print("x_flat size: {}".format(len(x_flat[0])))
         
+        
+        # x_flat = torch.cat([x_flat, self.coord_tensor],2)
+        # print("x_flat size: {}".format(len(x_flat[0])))
 
         # x_flat = x
         #4 dimensions?
@@ -428,9 +429,9 @@ class StateRN(BasicModel):
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)  # (64,11) -> (64,1,11)
         # print("QST1 {}".format(len(qst)))
-        # qst = qst.repeat(1, 3, 1)  # 64 x 4 x 11
+        qst = qst.repeat(1, 3, 1)  # 64 x 4 x 11
         # qst = qst.repeat(1, 9, 1)  # 64 x 4 x 11
-        qst = qst.repeat(1, 25, 1)  # 64 x 4 x 11
+        # qst = qst.repeat(1, 25, 1)  # 64 x 4 x 11
         # print("QST2 {}".format(len(qst)))
         qst = torch.unsqueeze(qst, 2)  # 64 x 4 x 1 x 11
         print("QST {}".format(len(qst)))
@@ -439,11 +440,13 @@ class StateRN(BasicModel):
         
         x_i = torch.unsqueeze(x_flat, 1)  # 64 x 1 x 25 x (256 + 2)
         # print(len(x_i))
-        x_i = x_i.repeat(1, 25, 1, 1)  # 64 x 25 x 25 x (256 + 2)
+        # x_i = x_i.repeat(1, 25, 1, 1)  # 64 x 25 x 25 x (256 + 2)
+        x_i = x_i.repeat(1, 6, 1, 1)  # 64 x 25 x 25 x (256 + 2)
         
         x_j = torch.unsqueeze(x_flat, 2)  #  64 x 25 x 1 x (256 + 2)
         x_j = torch.cat([x_j, qst], 3) # 64 x 25 x 1 x (256 + 2 + 11)
-        x_j = x_j.repeat(1, 1, 25, 1)  #  64 x 25 x 25 x (256 + 2 + 11)
+        # x_j = x_j.repeat(1, 1, 25, 1)  #  64 x 25 x 25 x (256 + 2 + 11)
+        x_j = x_j.repeat(1, 1, 3, 1)  #  64 x 25 x 25 x (256 + 2 + 11)
 
         # cast all pairs against each other
         # x_flat: 64 x 24 x 6
