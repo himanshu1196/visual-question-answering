@@ -20,7 +20,7 @@ from model import RN, BiggerRN, CNN_MLP, StateRN
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Relational-Network sort-of-CLVR Example')
-parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP'], default='RN',
+parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP'], default='RN', 
                     help='resume from model stored')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training (default: 64)')
@@ -50,17 +50,17 @@ if args.cuda:
 
 summary_writer = SummaryWriter()
 
-if args.model=='CNN_MLP':
+if args.model=='CNN_MLP': 
   model = CNN_MLP(args)
 elif args.model=='Original_RN':
   model = StateRN(args)
 else:
   # smaller network
   model = RN(args)
-
+  
 model_dirs = './model'
 bs = args.batch_size
-input_img = torch.FloatTensor(bs, 3, 75, 75)
+input_img = torch.FloatTensor(bs, 6, 14)
 input_qst = torch.FloatTensor(bs, 11)
 label = torch.LongTensor(bs)
 
@@ -91,19 +91,20 @@ def cvt_data_axis(data):
     ans = [e[2] for e in data]
     return (img,qst,ans)
 
-
+    
 def train(epoch, rel, norel):
-    model.train()
 
+    model.train()
     if not len(rel[0]) == len(norel[0]):
         print('Not equal length for relation dataset and non-relation dataset.')
         return
-
+    
     random.shuffle(rel)
     random.shuffle(norel)
 
     rel = cvt_data_axis(rel)
     norel = cvt_data_axis(norel)
+    
 
     acc_rels = []
     acc_norels = []
@@ -113,6 +114,8 @@ def train(epoch, rel, norel):
 
     for batch_idx in range(len(rel[0]) // bs):
         tensor_data(rel, batch_idx)
+
+
         accuracy_rel, loss_binary = model.train_(input_img, input_qst, label)
         acc_rels.append(accuracy_rel.item())
         l_binary.append(loss_binary.item())
@@ -131,7 +134,7 @@ def train(epoch, rel, norel):
                    100. * batch_idx * bs / len(rel[0]),
                    accuracy_rel,
                    accuracy_norel))
-
+        
     avg_acc_binary = sum(acc_rels) / len(acc_rels)
     avg_acc_unary = sum(acc_norels) / len(acc_norels)
 
@@ -156,7 +159,7 @@ def test(epoch, rel, norel):
     if not len(rel[0]) == len(norel[0]):
         print('Not equal length for relation dataset and non-relation dataset.')
         return
-
+    
     rel = cvt_data_axis(rel)
     norel = cvt_data_axis(norel)
 
@@ -200,11 +203,11 @@ def test(epoch, rel, norel):
 def load_data():
     print('loading data...')
     dirs = './data'
-    filename = os.path.join(dirs,'sort-of-clevr.pickle')
-
+    filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
+    
     with open(filename, 'rb') as f:
       train_datasets, test_datasets = pickle.load(f)
-
+    
     rel_train = []
     rel_test = []
     norel_train = []
@@ -224,11 +227,51 @@ def load_data():
             rel_test.append((img,qst,ans))
         for qst,ans in zip(norelations[0], norelations[1]):
             norel_test.append((img,qst,ans))
-
+    
     return (rel_train, rel_test, norel_train, norel_test)
 
+import pandas as pd
+def load_data_state():
+    print('loading data...')
+    dirs = './data'
+    filename = os.path.join(dirs,'sort-of-clevr.pickle')
+    train_filename = os.path.join(dirs,'train_descriptions.csv')
+    test_filename = os.path.join(dirs, 'test_descriptions.csv')
+    
+    with open(filename, 'rb') as f:
+      train_datasets, test_datasets = pickle.load(f)
+
+    traindf = pd.read_csv(train_filename)
+    testdf = pd.read_csv(test_filename)
+
+    
+    rel_train = []
+    rel_test = []
+    norel_train = []
+    norel_test = []
+    print('processing data...')
+
+    for index, datatuple in enumerate(train_datasets):
+        img, relations, norelations = datatuple[0],datatuple[1],datatuple[2]
+        img = traindf.loc[traindf['img_id'] == index, :].values[:,1:]
+        for qst,ans in zip(relations[0], relations[1]):
+            rel_train.append((img,qst,ans))
+        for qst,ans in zip(norelations[0], norelations[1]):
+            norel_train.append((img,qst,ans))
+
+    for index, datatuple in enumerate(test_datasets):
+        img, relations, norelations = datatuple[0],datatuple[1],datatuple[2]
+        img = testdf.loc[testdf['img_id'] == index, :].values[:,1:]
+        for qst,ans in zip(relations[0], relations[1]):
+            rel_test.append((img,qst,ans))
+        for qst,ans in zip(norelations[0], norelations[1]):
+            norel_test.append((img,qst,ans))
+
+    return (rel_train, rel_test, norel_train, norel_test)
+    
 #load data
-rel_train, rel_test, norel_train, norel_test = load_data()
+rel_train, rel_test, norel_train, norel_test = load_data_state()
+print(rel_train[0][0])
 
 try:
     os.makedirs(model_dirs)

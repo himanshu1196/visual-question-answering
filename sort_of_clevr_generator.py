@@ -60,24 +60,45 @@ def center_generate(objects):
             return center
 
 
+state_row_length = 15
+
 def build_dataset(index, df):
     objects = []
     img = np.ones((img_size, img_size, 3)) * 255
+
     for color_id, color in enumerate(colors):
         center = center_generate(objects)
+        row = np.zeros(state_row_length)
         if random.random() < 0.5:
             start = (center[0] - size, center[1] - size)
             end = (center[0] + size, center[1] + size)
             cv2.rectangle(img, start, end, color, -1)
             objects.append((color_id, center, 'r'))
             # state description
-            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'rectangle', size]
+
+            row[0] = index
+            row[1+color_id] = 1
+            #shapre, rectangle = 1 0
+            row[7] = 1
+            row[9] = center[0] / 75
+            row[10] = center[1] / 75
+            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
+            row[13] = 1 #index 13 refers to size small of small/big
+            
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
             objects.append((color_id, center, 'c'))
-            df.loc[len(df.index)] = [index, color_id, (center[0], center[1]), color, 'circle', size]
-
+            row[0] = index
+            row[1+color_id] = 1
+            #shapre, rectangle = 1 0
+            row[8] = 1
+            row[9] = center[0] / 75
+            row[10] = center[1] / 75
+            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
+            row[13] = 1 #index 13 refers to size small of small/big
+        
+        df.loc[len(df.index)] = row
 
     binary_questions = []
     norel_questions = []
@@ -166,7 +187,7 @@ def build_dataset(index, df):
 
 
 print('building test datasets...')
-COLUMNS = ['img_id', 'obj_id', '(x, y)', 'color', 'shape', 'size']
+COLUMNS = ['img_id', 'obj_id_0', 'obj_id_1', 'obj_id_2', 'obj_id_3', 'obj_id_4', 'obj_id_5', 'shape_r', 'shape_c', 'center_x', 'center_y', 'material_sm', 'material_sh', 'size_s', 'size_b']
 scene_description_test = pd.DataFrame(columns=COLUMNS)
 
 test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
@@ -176,8 +197,8 @@ print('building train datasets...')
 train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
 print(scene_description_train)
 
-scene_description_test.to_csv("test_descriptions.csv")
-scene_description_train.to_csv("train_descriptions.csv")
+scene_description_test.to_csv("data/test_descriptions.csv",index=False)
+scene_description_train.to_csv("data/train_descriptions.csv",index=False)
 
 print('saving datasets...')
 filename = os.path.join(dirs, 'sort-of-clevr.pickle')
