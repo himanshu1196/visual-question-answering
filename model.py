@@ -376,8 +376,8 @@ class StateRN(BasicModel):
         # was used for fθ.
         self.f_fc1 = nn.Linear(512, 512)
         self.f_fc2 = nn.Linear(512, 512)
-        self.f_fc3 = nn.Linear(512, 256)
-        self.f_fc4 = nn.Linear(256, 10)
+        self.f_fc3 = nn.Linear(512, 128)
+        self.f_fc4 = nn.Linear(128, 10)
         # (?) #final output length depends on the answer embedding (10 in this case?)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
@@ -458,13 +458,13 @@ class StateRN(BasicModel):
         x_g = x_g.sum(1).squeeze()  # 64 x 512
 
         """f"""
-        # unsure of these dimensions
         x_f = self.f_fc1(x_g)  # 64 x 512
         x_f = F.relu(x_f)
         x_f = self.f_fc2(x_f)  # 64 x 512
         x_f = F.relu(x_f)
         x_f = self.f_fc3(x_f)  # 64 x 256
         x_f = F.relu(x_f)
+        x_f = F.dropout(x_f)
         x_f = self.f_fc4(x_f)  # 64 x 10
         x_f = F.log_softmax(x_f, dim=1)  # 64 x 10
 
