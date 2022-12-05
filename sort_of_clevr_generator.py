@@ -7,8 +7,6 @@ import pickle
 import warnings
 import argparse
 
-import pandas as pd
-
 parser = argparse.ArgumentParser(description='Sort-of-CLEVR dataset generator')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -23,82 +21,60 @@ train_size = 9800
 test_size = 200
 img_size = 75
 size = 5
-question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
-q_type_idx = 12
-sub_q_type_idx = 15
+question_size = 11  ## 1 x (6 for one-hot vector of color), 2 for question type, 3 for question subtype
+q_type_idx = 6
+sub_q_type_idx = 8
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
 nb_questions = 10
 dirs = './data'
 
 colors = [
-    (0, 0, 255),  ##r
-    (0, 255, 0),  ##g
-    (255, 0, 0),  ##b
-    (0, 156, 255),  ##o
-    (128, 128, 128),  ##k
-    (0, 255, 255)  ##y
+    (0,0,255),##r
+    (0,255,0),##g
+    (255,0,0),##b
+    (0,156,255),##o
+    (128,128,128),##k
+    (0,255,255)##y
 ]
 
-materials = ['shiny', 'smooth', 'matte']
 
 try:
     os.makedirs(dirs)
 except:
     print('directory {} already exists'.format(dirs))
 
-
+#pick random centers until new object does not overlap with existing objects
 def center_generate(objects):
     while True:
         pas = True
-        center = np.random.randint(0 + size, img_size - size, 2)
+        center = np.random.randint(0+size, img_size - size, 2)        
         if len(objects) > 0:
-            for name, c, shape in objects:
+            for name,c,shape in objects:
                 if ((center - c) ** 2).sum() < ((size * 2) ** 2):
                     pas = False
         if pas:
             return center
 
 
-state_row_length = 15
 
-def build_dataset(index, df):
+def build_dataset():
     objects = []
-    img = np.ones((img_size, img_size, 3)) * 255
-
-    for color_id, color in enumerate(colors):
+    img = np.ones((img_size,img_size,3)) * 255
+    
+    #generate 1 object of each color, random shape (Square/Circle), random center, size = 5 
+    for color_id,color in enumerate(colors):  
         center = center_generate(objects)
-        row = np.zeros(state_row_length)
-        if random.random() < 0.5:
-            start = (center[0] - size, center[1] - size)
-            end = (center[0] + size, center[1] + size)
+        if random.random()<0.5:
+            start = (center[0]-size, center[1]-size)
+            end = (center[0]+size, center[1]+size)
             cv2.rectangle(img, start, end, color, -1)
-            objects.append((color_id, center, 'r'))
-            # state description
-
-            row[0] = index
-            row[1+color_id] = 1
-            #shapre, rectangle = 1 0
-            row[7] = 1
-            row[9] = center[0] / 75
-            row[10] = center[1] / 75
-            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
-            row[13] = 1 #index 13 refers to size small of small/big
-            
+            objects.append((color_id,center,'r'))
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
-            objects.append((color_id, center, 'c'))
-            row[0] = index
-            row[1+color_id] = 1
-            #shapre, rectangle = 1 0
-            row[8] = 1
-            row[9] = center[0] / 75
-            row[10] = center[1] / 75
-            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
-            row[13] = 1 #index 13 refers to size small of small/big
-        
-        df.loc[len(df.index)] = row
+            objects.append((color_id,center,'c'))
+
 
     binary_questions = []
     norel_questions = []
@@ -107,13 +83,13 @@ def build_dataset(index, df):
     """Non-relational questions"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
-        color = random.randint(0, 5)
+        color = random.randint(0,5)
         question[color] = 1
         question[q_type_idx] = 1
-        subtype = random.randint(0, 2)
-        question[subtype + sub_q_type_idx] = 1
+        subtype = random.randint(0,2)
+        question[subtype+sub_q_type_idx] = 1
         norel_questions.append(question)
-        """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
+        """Answer : [yes, no, rectangle, circle, 0, 1, 2, 3, 4, 5]"""
         if subtype == 0:
             """query shape->rectangle/circle"""
             if objects[color][2] == 'r':
@@ -135,15 +111,15 @@ def build_dataset(index, df):
             else:
                 answer = 1
         norel_answers.append(answer)
-
+    
     """Binary Relational questions"""
     for _ in range(nb_questions):
         question = np.zeros((question_size))
-        color = random.randint(0, 5)
+        color = random.randint(0,5)
         question[color] = 1
-        question[q_type_idx + 1] = 1
-        subtype = random.randint(0, 2)
-        question[subtype + sub_q_type_idx] = 1
+        question[q_type_idx+1] = 1
+        subtype = random.randint(0,2)
+        question[subtype+sub_q_type_idx] = 1
         binary_questions.append(question)
 
         if subtype == 0:
@@ -156,7 +132,7 @@ def build_dataset(index, df):
                 answer = 2
             else:
                 answer = 3
-
+                
         elif subtype == 1:
             """furthest-from->rectangle/circle"""
             my_obj = objects[color][1]
@@ -169,13 +145,15 @@ def build_dataset(index, df):
 
         elif subtype == 2:
             """count->1~6"""
+            #how many objects have the same shape as my-object
             my_obj = objects[color][2]
             count = -1
             for obj in objects:
                 if obj[2] == my_obj:
-                    count += 1
-            answer = count + 4
+                    count +=1 
+            answer = count+4
 
+        #answer is an int  between 0 and 9, needs to be one-hot encoded
         binary_answers.append(answer)
 
     binary_relations = (binary_questions, binary_answers)
@@ -187,21 +165,13 @@ def build_dataset(index, df):
 
 
 print('building test datasets...')
-COLUMNS = ['img_id', 'obj_id_0', 'obj_id_1', 'obj_id_2', 'obj_id_3', 'obj_id_4', 'obj_id_5', 'shape_r', 'shape_c', 'center_x', 'center_y', 'material_sm', 'material_sh', 'size_s', 'size_b']
-scene_description_test = pd.DataFrame(columns=COLUMNS)
-
-test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
-print(scene_description_test)
-scene_description_train = pd.DataFrame(columns=COLUMNS)
+test_datasets = [build_dataset() for _ in range(test_size)]
 print('building train datasets...')
-train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
-print(scene_description_train)
+train_datasets = [build_dataset() for _ in range(train_size)]
 
-scene_description_test.to_csv("data/test_descriptions.csv",index=False)
-scene_description_train.to_csv("data/train_descriptions.csv",index=False)
 
 print('saving datasets...')
-filename = os.path.join(dirs, 'sort-of-clevr.pickle')
+filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
 with  open(filename, 'wb') as f:
     pickle.dump((train_datasets, test_datasets), f)
 print('datasets saved at {}'.format(filename))
