@@ -76,14 +76,13 @@ def build_dataset(index, df):
             objects.append((color_id, center, 'r'))
             # state description
 
-            row[0] = index
-            row[1+color_id] = 1
-            #shapre, rectangle = 1 0
-            row[7] = 1
-            row[9] = center[0] / 75
-            row[10] = center[1] / 75
-            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
-            row[13] = 1 #index 13 refers to size small of small/big
+            row[0] = index #object ID
+            row[1+color_id] = 1 #color
+            row[7] = 1  #shape, index 7-8 refers to the shape of object rectangle = 1 0, circle = 0 1
+            row[9] = center[0] / 75 #x-coordinate
+            row[10] = center[1] / 75 #y-coordinate
+            row[11] = 1 #material, index 11-12 refers to material smooth/shiny (all smooth)
+            row[13] = 1 #size, index 13-14 refers to size small/big (all small)
             
         else:
             center_ = (center[0], center[1])
@@ -91,12 +90,11 @@ def build_dataset(index, df):
             objects.append((color_id, center, 'c'))
             row[0] = index
             row[1+color_id] = 1
-            #shapre, rectangle = 1 0
-            row[8] = 1
-            row[9] = center[0] / 75
+            row[8] = 1 #circle
+            row[9] = center[0] / 75 
             row[10] = center[1] / 75
-            row[11] = 1 #index 11 refers to material smooth of smooth/shiny
-            row[13] = 1 #index 13 refers to size small of small/big
+            row[11] = 1 
+            row[13] = 1 
         
         df.loc[len(df.index)] = row
 
@@ -175,7 +173,7 @@ def build_dataset(index, df):
                 if obj[2] == my_obj:
                     count += 1
             answer = count + 4
-
+        #answer is an int  between 0 and 9, needs to be one-hot encoded
         binary_answers.append(answer)
 
     binary_relations = (binary_questions, binary_answers)
@@ -201,7 +199,7 @@ scene_description_test.to_csv("data/test_descriptions.csv",index=False)
 scene_description_train.to_csv("data/train_descriptions.csv",index=False)
 
 print('saving datasets...')
-filename = os.path.join(dirs, 'sort-of-clevr.pickle')
+filename = os.path.join(dirs, 'sort-of-clevr-original.pickle')
 with  open(filename, 'wb') as f:
     pickle.dump((train_datasets, test_datasets), f)
 print('datasets saved at {}'.format(filename))
