@@ -23,9 +23,9 @@ train_size = 9800
 test_size = 200
 img_size = 75
 size = 5
-question_size = 18  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
-q_type_idx = 12
-sub_q_type_idx = 15
+question_size = 11  ## 2 x (6 for one-hot vector of color), 3 for question type, 3 for question subtype
+q_type_idx = 6
+sub_q_type_idx = 8
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
 nb_questions = 10

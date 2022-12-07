@@ -271,7 +271,6 @@ def load_data_state():
     
 #load data
 rel_train, rel_test, norel_train, norel_test = load_data_state()
-print(rel_train[0][0])
 
 try:
     os.makedirs(model_dirs)
