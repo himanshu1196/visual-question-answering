@@ -64,35 +64,29 @@ def build_dataset(index, df):
     objects = []
     img = np.ones((img_size, img_size, 3)) * 255
 
+    #generate 1 object of each color, random shape (Square/Circle), random center, size = 5
     for color_id, color in enumerate(colors):
         center = center_generate(objects)
+        # state description
         row = np.zeros(state_row_length)
+        row[0] = index #image ID
+        row[1+color_id] = 1 #unique color of object
+        row[9] = center[0] / 75 #x-coordinate
+        row[10] = center[1] / 75 #y-coordinate
+        row[11] = 1 #material, index 11-12 refers to material smooth/shiny (all smooth)
+        row[13] = 1 #size, index 13-14 refers to size small/big (all small)
         if random.random() < 0.5:
             start = (center[0] - size, center[1] - size)
             end = (center[0] + size, center[1] + size)
             cv2.rectangle(img, start, end, color, -1)
             objects.append((color_id, center, 'r'))
-            # state description
-
-            row[0] = index #object ID
-            row[1+color_id] = 1 #color
-            row[7] = 1  #shape, index 7-8 refers to the shape of object rectangle = 1 0, circle = 0 1
-            row[9] = center[0] / 75 #x-coordinate
-            row[10] = center[1] / 75 #y-coordinate
-            row[11] = 1 #material, index 11-12 refers to material smooth/shiny (all smooth)
-            row[13] = 1 #size, index 13-14 refers to size small/big (all small)
             
+            row[7] = 1  #shape, index 7-8 refers to the shape of object rectangle = 1 0, circle = 0 1
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
             objects.append((color_id, center, 'c'))
-            row[0] = index
-            row[1+color_id] = 1
             row[8] = 1 #circle
-            row[9] = center[0] / 75 
-            row[10] = center[1] / 75
-            row[11] = 1 
-            row[13] = 1 
         
         df.loc[len(df.index)] = row
     binary_questions = []
@@ -194,8 +188,8 @@ print('building train datasets...')
 train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
 print(scene_description_train)
 
-scene_description_test.to_csv("data/test_descriptions.csv",index=False)
-scene_description_train.to_csv("data/train_descriptions.csv",index=False)
+scene_description_test.to_csv(os.path.join(dirs, 'test_descriptions.csv'),index=False)
+scene_description_train.to_csv(os.path.join(dirs, 'train_descriptions.csv'),index=False)
 
 print('saving datasets...')
 filename = os.path.join(dirs, 'sort-of-clevr-original.pickle')

@@ -20,7 +20,7 @@ import pandas as pd
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Relational-Network sort-of-CLVR Example')
-parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP','State_RN','Bigger_RN'], default='RN', 
+parser.add_argument('--model', type=str, choices=['Small_RN', 'Large_RN', 'State_RN', 'CNN_MLP',], default='Small_RN', 
                     help='resume from model stored')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training (default: 64)')
@@ -52,14 +52,14 @@ summary_writer = SummaryWriter()
 
 if args.model=='CNN_MLP': 
   model = CNN_MLP(args)
-elif args.model=='Original_RN':
+elif args.model=='Small_RN':
   model = RN(args)
-elif args.model=='Bigger_RN':
+elif args.model=='Large_RN':
   model = BiggerRN(args)
 elif args.model=='State_RN':
   model = StateRN(args)
 else:
-  # smaller network
+  # smaller relational network
   model = RN(args)
   
 model_dirs = './model'
@@ -297,7 +297,7 @@ with open(f'./{args.model}_{args.seed}_log.csv', 'w') as log_file:
     csv_writer.writerow(['epoch', 'train_acc_rel',
                      'train_acc_norel', 'test_acc_rel', 'test_acc_norel'])
 
-    print(f"Training {args.model} {f'({args.relation_type})' if args.model == 'RN' else ''} model...")
+    print(f"Training {args.model} model...")
 
     for epoch in range(1, args.epochs + 1):
         train_acc_binary, train_acc_unary = train(epoch, rel_train, norel_train)
