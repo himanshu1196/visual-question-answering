@@ -15,6 +15,7 @@ $ conda activate RN3
 
 Generate sort-of-clevr dataset :
 $ conda install pandas
+
 $ python sort_of_clevr_generator.py
 
 Train the binary RN model : 
