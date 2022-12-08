@@ -8,12 +8,15 @@ Create conda environment from environment.yml file
 Usage :
 
 Create environment :
+
 $ conda env create -f environment.yml
 
 Activate environment :
+
 $ conda activate RN3
 
 Generate sort-of-clevr dataset :
+
 $ conda install pandas
 
 $ python sort_of_clevr_generator.py
