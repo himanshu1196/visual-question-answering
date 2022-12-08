@@ -28,6 +28,7 @@ dependencies:
     - numpy==1.18.1
     - opencv-python==4.2.0.32
     - torch
+    - pandas==1.0.3
     - tensorboard==2.2.0
     - tensorboard-plugin-wit==1.6.0.post2
     - protobuf==3.20.*
