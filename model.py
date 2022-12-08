@@ -310,8 +310,10 @@ class BiggerRN(BasicModel):
         x_f = F.relu(x_f)
         x_f = self.f_fc2(x_f) # 64 x 1000
         x_f = F.relu(x_f)
+        x_f = F.dropout(x_f,p=0.2)
         x_f = self.f_fc3(x_f) # 64 x 500
         x_f = F.relu(x_f)
+        x_f = F.dropout(x_f)
         x_f = self.f_fc4(x_f) # 64 x 100
         x_f = F.relu(x_f)
         x_f = self.f_fc5(x_f) # 64 x 10
