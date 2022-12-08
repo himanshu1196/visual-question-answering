@@ -377,7 +377,7 @@ class StateRN(BasicModel):
         self.f_fc2 = nn.Linear(512, 512)
         self.f_fc3 = nn.Linear(512, 128)
         self.f_fc4 = nn.Linear(128, 10)
-        # (?) #final output length depends on the answer embedding (10 in this case?)
+        # final output length depends on the answer embedding (10 in this case)
 
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
@@ -410,18 +410,10 @@ class StateRN(BasicModel):
 
         """g"""
         mb = x.size()[0]
-        # n_channels = x.size()[1]
-        # d1 = x.size()[2]
-        # d2 = 1
+
         d = x.size()[1] #num of objects
 
-        # x_flat = x.view(mb, n_channels, d * d).permute(0, 2, 1)
-
         x_flat = x
-
-        # add coordinates
-        # x_flat = torch.cat([x_flat, self.coord_tensor], 2)
-
 
         # add question everywhere
         qst = torch.unsqueeze(qst, 1)  # (64,11) -> (64,1,11)
