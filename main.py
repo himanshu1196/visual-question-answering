@@ -15,12 +15,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from torch.autograd import Variable
 
-from model import RN, BiggerRN, CNN_MLP
-
+from model import RN, BiggerRN, CNN_MLP, StateRN
+import pandas as pd
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch Relational-Network sort-of-CLVR Example')
-parser.add_argument('--model', type=str, choices=['Original_RN', 'RN', 'CNN_MLP'], default='RN', 
+parser.add_argument('--model', type=str, choices=['Small_RN', 'Large_RN', 'State_RN', 'CNN_MLP',], default='Small_RN', 
                     help='resume from model stored')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input batch size for training (default: 64)')
@@ -52,15 +52,23 @@ summary_writer = SummaryWriter()
 
 if args.model=='CNN_MLP': 
   model = CNN_MLP(args)
-elif args.model=='Original_RN':
+elif args.model=='Small_RN':
+  model = RN(args)
+elif args.model=='Large_RN':
   model = BiggerRN(args)
+elif args.model=='State_RN':
+  model = StateRN(args)
 else:
-  # smaller network
+  # smaller relational network
   model = RN(args)
   
 model_dirs = './model'
 bs = args.batch_size
-input_img = torch.FloatTensor(bs, 3, 75, 75)
+
+if args.model=='State_RN':
+    input_img = torch.FloatTensor(bs, 6, 14)
+else:
+    input_img = torch.FloatTensor(bs, 3, 75, 75)
 input_qst = torch.FloatTensor(bs, 11)
 label = torch.LongTensor(bs)
 
@@ -226,9 +234,50 @@ def load_data():
             norel_test.append((img,qst,ans))
     
     return (rel_train, rel_test, norel_train, norel_test)
+
+def load_data_state():
+    print('loading data...')
+    dirs = './data'
+    filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
+    train_filename = os.path.join(dirs,'train_descriptions.csv')
+    test_filename = os.path.join(dirs, 'test_descriptions.csv')
     
+    with open(filename, 'rb') as f:
+      train_datasets, test_datasets = pickle.load(f)
+
+    traindf = pd.read_csv(train_filename)
+    testdf = pd.read_csv(test_filename)
+
+    
+    rel_train = []
+    rel_test = []
+    norel_train = []
+    norel_test = []
+    print('processing data...')
+
+    for index, datatuple in enumerate(train_datasets):
+        img, relations, norelations = datatuple[0],datatuple[1],datatuple[2]
+        img = traindf.loc[traindf['img_id'] == index, :].values[:,1:]
+        for qst,ans in zip(relations[0], relations[1]):
+            rel_train.append((img,qst,ans))
+        for qst,ans in zip(norelations[0], norelations[1]):
+            norel_train.append((img,qst,ans))
+
+    for index, datatuple in enumerate(test_datasets):
+        img, relations, norelations = datatuple[0],datatuple[1],datatuple[2]
+        img = testdf.loc[testdf['img_id'] == index, :].values[:,1:]
+        for qst,ans in zip(relations[0], relations[1]):
+            rel_test.append((img,qst,ans))
+        for qst,ans in zip(norelations[0], norelations[1]):
+            norel_test.append((img,qst,ans))
+
+    return (rel_train, rel_test, norel_train, norel_test)    
 #load data
-rel_train, rel_test, norel_train, norel_test = load_data()
+if args.model =='State_RN':
+    rel_train, rel_test, norel_train, norel_test = load_data_state()
+
+else:
+    rel_train, rel_test, norel_train, norel_test = load_data()
 
 try:
     os.makedirs(model_dirs)
@@ -248,7 +297,7 @@ with open(f'./{args.model}_{args.seed}_log.csv', 'w') as log_file:
     csv_writer.writerow(['epoch', 'train_acc_rel',
                      'train_acc_norel', 'test_acc_rel', 'test_acc_norel'])
 
-    print(f"Training {args.model} {f'({args.relation_type})' if args.model == 'RN' else ''} model...")
+    print(f"Training {args.model} model...")
 
     for epoch in range(1, args.epochs + 1):
         train_acc_binary, train_acc_unary = train(epoch, rel_train, norel_train)

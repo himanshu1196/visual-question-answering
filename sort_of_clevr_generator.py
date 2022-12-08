@@ -7,6 +7,8 @@ import pickle
 import warnings
 import argparse
 
+import pandas as pd
+
 parser = argparse.ArgumentParser(description='Sort-of-CLEVR dataset generator')
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -56,26 +58,37 @@ def center_generate(objects):
         if pas:
             return center
 
+state_row_length = 15
 
-
-def build_dataset():
+def build_dataset(index, df):
     objects = []
-    img = np.ones((img_size,img_size,3)) * 255
-    
-    #generate 1 object of each color, random shape (Square/Circle), random center, size = 5 
-    for color_id,color in enumerate(colors):  
+    img = np.ones((img_size, img_size, 3)) * 255
+
+    #generate 1 object of each color, random shape (Square/Circle), random center, size = 5
+    for color_id, color in enumerate(colors):
         center = center_generate(objects)
-        if random.random()<0.5:
-            start = (center[0]-size, center[1]-size)
-            end = (center[0]+size, center[1]+size)
+        # state description
+        row = np.zeros(state_row_length)
+        row[0] = index #image ID
+        row[1+color_id] = 1 #unique color of object
+        row[9] = center[0] / 75 #x-coordinate
+        row[10] = center[1] / 75 #y-coordinate
+        row[11] = 1 #material, index 11-12 refers to material smooth/shiny (all smooth)
+        row[13] = 1 #size, index 13-14 refers to size small/big (all small)
+        if random.random() < 0.5:
+            start = (center[0] - size, center[1] - size)
+            end = (center[0] + size, center[1] + size)
             cv2.rectangle(img, start, end, color, -1)
-            objects.append((color_id,center,'r'))
+            objects.append((color_id, center, 'r'))
+            
+            row[7] = 1  #shape, index 7-8 refers to the shape of object rectangle = 1 0, circle = 0 1
         else:
             center_ = (center[0], center[1])
             cv2.circle(img, center_, size, color, -1)
-            objects.append((color_id,center,'c'))
-
-
+            objects.append((color_id, center, 'c'))
+            row[8] = 1 #circle
+        
+        df.loc[len(df.index)] = row
     binary_questions = []
     norel_questions = []
     binary_answers = []
@@ -165,13 +178,21 @@ def build_dataset():
 
 
 print('building test datasets...')
-test_datasets = [build_dataset() for _ in range(test_size)]
-print('building train datasets...')
-train_datasets = [build_dataset() for _ in range(train_size)]
+COLUMNS = ['img_id', 'obj_id_0', 'obj_id_1', 'obj_id_2', 'obj_id_3', 'obj_id_4', 'obj_id_5', 'shape_r', 'shape_c', 'center_x', 'center_y', 'material_sm', 'material_sh', 'size_s', 'size_b']
+scene_description_test = pd.DataFrame(columns=COLUMNS)
 
+test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
+print(scene_description_test)
+scene_description_train = pd.DataFrame(columns=COLUMNS)
+print('building train datasets...')
+train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
+print(scene_description_train)
+
+scene_description_test.to_csv(os.path.join(dirs, 'test_descriptions.csv'),index=False)
+scene_description_train.to_csv(os.path.join(dirs, 'train_descriptions.csv'),index=False)
 
 print('saving datasets...')
-filename = os.path.join(dirs,'sort-of-clevr-original.pickle')
+filename = os.path.join(dirs, 'sort-of-clevr-original.pickle')
 with  open(filename, 'wb') as f:
     pickle.dump((train_datasets, test_datasets), f)
 print('datasets saved at {}'.format(filename))
