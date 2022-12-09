@@ -378,7 +378,7 @@ class StateRN(BasicModel):
         self.relation_type = args.relation_type
 
 
-        ##input size = (depth of output after final CNN layer+coordinate of object)*2+question vector
+        ##input size = (size of one object state description)*2+question vector
         #4 MLP layers 512 per layer
         self.g_fc1 = nn.Linear((14*2)+11, 512)
         self.g_fc2 = nn.Linear(512, 512)
