@@ -28,7 +28,7 @@ q_type_idx = 6
 sub_q_type_idx = 8
 """Answer : [yes, no, rectangle, circle, r, g, b, o, k, y]"""
 
-nb_questions = 10
+nb_questions = 10 #10 questions each for relational/non-relational
 dirs = './data'
 
 colors = [
@@ -71,8 +71,8 @@ def build_dataset(index, df):
         row = np.zeros(state_row_length)
         row[0] = index #image ID
         row[1+color_id] = 1 #unique color of object
-        row[9] = center[0] / 75 #x-coordinate
-        row[10] = center[1] / 75 #y-coordinate
+        row[9] = center[0] / img_size #x-coordinate
+        row[10] = center[1] / img_size #y-coordinate
         row[11] = 1 #material, index 11-12 refers to material smooth/shiny (all smooth)
         row[13] = 1 #size, index 13-14 refers to size small/big (all small)
         if random.random() < 0.5:
@@ -99,7 +99,7 @@ def build_dataset(index, df):
         color = random.randint(0,5)
         question[color] = 1
         question[q_type_idx] = 1
-        subtype = random.randint(0,2)
+        subtype = random.randint(0,2) # 0: query shape, 1: query horizontal position, 2: query vertical position
         question[subtype+sub_q_type_idx] = 1
         norel_questions.append(question)
         """Answer : [yes, no, rectangle, circle, 0, 1, 2, 3, 4, 5]"""
@@ -177,16 +177,17 @@ def build_dataset(index, df):
     return dataset
 
 
+# Build training and testing test
+# scene descriptions for the generated datasets is saved to CSV files
+
 print('building test datasets...')
 COLUMNS = ['img_id', 'obj_id_0', 'obj_id_1', 'obj_id_2', 'obj_id_3', 'obj_id_4', 'obj_id_5', 'shape_r', 'shape_c', 'center_x', 'center_y', 'material_sm', 'material_sh', 'size_s', 'size_b']
 scene_description_test = pd.DataFrame(columns=COLUMNS)
 
 test_datasets = [build_dataset(index, scene_description_test) for index in range(test_size)]
-print(scene_description_test)
 scene_description_train = pd.DataFrame(columns=COLUMNS)
 print('building train datasets...')
 train_datasets = [build_dataset(index, scene_description_train) for index in range(train_size)]
-print(scene_description_train)
 
 scene_description_test.to_csv(os.path.join(dirs, 'test_descriptions.csv'),index=False)
 scene_description_train.to_csv(os.path.join(dirs, 'train_descriptions.csv'),index=False)

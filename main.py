@@ -41,6 +41,7 @@ parser.add_argument('--relation-type', type=str, default='binary',
 
 args = parser.parse_args()
 
+#Use cuda if it is available
 print('CUDA available?', torch.cuda.is_available())
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -50,6 +51,7 @@ if args.cuda:
 
 summary_writer = SummaryWriter()
 
+#select model based on arguments
 if args.model=='CNN_MLP': 
   model = CNN_MLP(args)
 elif args.model=='Small_RN':
@@ -61,16 +63,18 @@ elif args.model=='State_RN':
 else:
   # smaller relational network
   model = RN(args)
-  
+
+#trained models will be saved in
 model_dirs = './model'
 bs = args.batch_size
 
+#input for state RN is the state description of an image. Set the tensor accordingly
 if args.model=='State_RN':
-    input_img = torch.FloatTensor(bs, 6, 14)
+    input_img = torch.FloatTensor(bs, 6, 14) # 6 objects per image and 14 columns to describe each object
 else:
-    input_img = torch.FloatTensor(bs, 3, 75, 75)
-input_qst = torch.FloatTensor(bs, 11)
-label = torch.LongTensor(bs)
+    input_img = torch.FloatTensor(bs, 3, 75, 75) # 3 color channels-red, green, and blue / 75 x 75 pixels
+input_qst = torch.FloatTensor(bs, 11) # the length of question:11 (6 colors + 2 Q types + 3 Question subtypes)
+label = torch.LongTensor(bs) #integer answer denoting a one hot vector's label
 
 if args.cuda:
     print('CUDA available?', torch.cuda.is_available())
@@ -79,21 +83,26 @@ if args.cuda:
     input_qst = input_qst.cuda()
     label = label.cuda()
 
+
 input_img = Variable(input_img)
 input_qst = Variable(input_qst)
 label = Variable(label)
 
+# Prepare input(img/sence) and label data for a batch of training sets
 def tensor_data(data, i):
+    # converting data from NumPy arrays to PyTorch tensors
     img = torch.from_numpy(np.asarray(data[0][bs*i:bs*(i+1)]))
     qst = torch.from_numpy(np.asarray(data[1][bs*i:bs*(i+1)]))
     ans = torch.from_numpy(np.asarray(data[2][bs*i:bs*(i+1)]))
 
+    #copy data from input img, qst, and label tensors to variables input_img, input_qst, and label
     input_img.data.resize_(img.size()).copy_(img)
     input_qst.data.resize_(qst.size()).copy_(qst)
     label.data.resize_(ans.size()).copy_(ans)
 
 
 def cvt_data_axis(data):
+    #create a tuple of lists from a list of tuples
     img = [e[0] for e in data]
     qst = [e[1] for e in data]
     ans = [e[2] for e in data]
@@ -110,15 +119,17 @@ def train(epoch, rel, norel):
     random.shuffle(rel)
     random.shuffle(norel)
 
-    rel = cvt_data_axis(rel)
-    norel = cvt_data_axis(norel)
+    rel = cvt_data_axis(rel) #relational data
+    norel = cvt_data_axis(norel) #non-relational data
 
+    #for storing training accuracy and loss for each batch
     acc_rels = []
     acc_norels = []
 
     l_binary = []
     l_unary = []
 
+    # train a model using batches of size <bs> from relational and non-relational datasets simultaneously
     for batch_idx in range(len(rel[0]) // bs):
         tensor_data(rel, batch_idx)
         accuracy_rel, loss_binary = model.train_(input_img, input_qst, label)
@@ -139,7 +150,8 @@ def train(epoch, rel, norel):
                    100. * batch_idx * bs / len(rel[0]),
                    accuracy_rel,
                    accuracy_norel))
-        
+    
+    # calculate average training accuracy across batches
     avg_acc_binary = sum(acc_rels) / len(acc_rels)
     avg_acc_unary = sum(acc_norels) / len(acc_norels)
 
@@ -165,15 +177,17 @@ def test(epoch, rel, norel):
         print('Not equal length for relation dataset and non-relation dataset.')
         return
     
-    rel = cvt_data_axis(rel)
-    norel = cvt_data_axis(norel)
+    rel = cvt_data_axis(rel) # relational data
+    norel = cvt_data_axis(norel) # non-relational data
 
+    #for storing test accuracy and loss for each batch
     accuracy_rels = []
     accuracy_norels = []
 
     loss_binary = []
     loss_unary = []
 
+    # test a model using batches of size <bs> from relational and non-relational datasets simultaneously
     for batch_idx in range(len(rel[0]) // bs):
         tensor_data(rel, batch_idx)
         acc_bin, l_bin = model.test_(input_img, input_qst, label)
@@ -185,6 +199,7 @@ def test(epoch, rel, norel):
         accuracy_norels.append(acc_un.item())
         loss_unary.append(l_un.item())
 
+    #calculate average accuracy
     accuracy_rel = sum(accuracy_rels) / len(accuracy_rels)
     accuracy_norel = sum(accuracy_norels) / len(accuracy_norels)
     print('\n Test set: Binary accuracy: {:.0f}% | Unary accuracy: {:.0f}%\n'.format(accuracy_rel, accuracy_norel))
@@ -205,6 +220,7 @@ def test(epoch, rel, norel):
     return accuracy_rel, accuracy_norel
 
 
+# load the generated training and test data(images, questions, answers) from pickle file 
 def load_data():
     print('loading data...')
     dirs = './data'
@@ -235,6 +251,7 @@ def load_data():
     
     return (rel_train, rel_test, norel_train, norel_test)
 
+# load the generated training and test data(images, questions, answers) from pickle file and state descriptions rom the csv files
 def load_data_state():
     print('loading data...')
     dirs = './data'
@@ -272,10 +289,10 @@ def load_data_state():
             norel_test.append((img,qst,ans))
 
     return (rel_train, rel_test, norel_train, norel_test)    
+
 #load data
 if args.model =='State_RN':
     rel_train, rel_test, norel_train, norel_test = load_data_state()
-
 else:
     rel_train, rel_test, norel_train, norel_test = load_data()
 
@@ -284,6 +301,7 @@ try:
 except:
     print('directory {} already exists'.format(model_dirs))
 
+# resume training a pretrained model
 if args.resume:
     filename = os.path.join(model_dirs, args.resume)
     if os.path.isfile(filename):
@@ -292,6 +310,7 @@ if args.resume:
         model.load_state_dict(checkpoint)
         print('==> loaded checkpoint {}'.format(filename))
 
+#training and test loops
 with open(f'./{args.model}_{args.seed}_log.csv', 'w') as log_file:
     csv_writer = csv.writer(log_file, delimiter=',')
     csv_writer.writerow(['epoch', 'train_acc_rel',
@@ -304,4 +323,5 @@ with open(f'./{args.model}_{args.seed}_log.csv', 'w') as log_file:
         test_acc_binary, test_acc_unary = test(epoch, rel_test, norel_test)
 
         csv_writer.writerow([epoch, train_acc_binary, train_acc_unary, test_acc_binary, test_acc_unary])
+        # save the model after each epoch
         model.save_model(epoch)
