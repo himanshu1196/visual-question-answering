@@ -4,15 +4,10 @@ channels:
 dependencies:
   - ca-certificates
   - certifi
-  # - libcxx
-  # - libcxxabi
-  # - libedit
   - libffi
-  # - ncurses
   - openssl
   - pip=20.0.2=py38_1
   - python=3.8.1
-  # - readline
   - setuptools
   - sqlite=3.31.1
   - tk

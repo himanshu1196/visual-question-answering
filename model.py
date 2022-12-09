@@ -10,7 +10,7 @@ class BiggerConvInputModel(nn.Module):
     def __init__(self):
         super(BiggerConvInputModel, self).__init__()
         
-        #CNN Layers for sort of clevr task from the original paper
+        #CNN Layers for sort of clevr task from the original paper with 32, 64, 128, 256 kernels
         self.conv1 = nn.Conv2d(3, 32, 3, stride=2, padding=1)
         self.batchNorm1 = nn.BatchNorm2d(32)
         self.conv2 = nn.Conv2d(32, 64, 3, stride=2, padding=1)
@@ -94,20 +94,31 @@ class BasicModel(nn.Module):
         self.name=name
 
     def train_(self, input_img, input_qst, label):
+        #zero the gradients
         self.optimizer.zero_grad()
+        #forward propagation
         output = self(input_img, input_qst)
+        #calculate loss (Note that logSoftmax(out) followed by nll_loss is equivalent to calculating categorical cross entropy loss on output logits)
         loss = F.nll_loss(output, label)
+        #calculate gradients
         loss.backward()
+        #update model parameters
         self.optimizer.step()
+        #predict using model output
         pred = output.data.max(1)[1]
+        #calculate prediction accuracy
         correct = pred.eq(label.data).cpu().sum()
         accuracy = correct * 100. / len(label)
         return accuracy, loss
         
     def test_(self, input_img, input_qst, label):
+        #forward propagation
         output = self(input_img, input_qst)
+        #calculate loss (Note that logSoftmax(out) followed by nll_loss is equivalent to calculating categorical cross entropy loss on output logits)
         loss = F.nll_loss(output, label)
+        #predict using model output
         pred = output.data.max(1)[1]
+        #calculate accuracy
         correct = pred.eq(label.data).cpu().sum()
         accuracy = correct * 100. / len(label)
         return accuracy, loss
@@ -124,7 +135,7 @@ class RN(BasicModel):
         
         self.relation_type = args.relation_type
         
-        #(number of filters per object(conv output)+coordinate of object)*2+question vector
+        #input is (number of filters per object(conv output)+coordinate of object)*2+question vector
         self.g_fc1 = nn.Linear((24+2)*2+11, 256)
 
         self.g_fc2 = nn.Linear(256, 256)
@@ -133,6 +144,7 @@ class RN(BasicModel):
 
         self.f_fc1 = nn.Linear(256, 256)
 
+        #for storing the coordinate of each object as part of the object vector
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
         if args.cuda:
@@ -154,9 +166,10 @@ class RN(BasicModel):
             np_coord_tensor[:,i,:] = np.array( cvt_coord(i) )
         self.coord_tensor.data.copy_(torch.from_numpy(np_coord_tensor))
 
-
+        #final fc layers
         self.fcout = FCOutputModel()
         
+        #optimizer
         self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
 
@@ -164,9 +177,9 @@ class RN(BasicModel):
         x = self.conv(img) ## x = (64 x 24 x 5 x 5)
         
         """g"""
-        mb = x.size()[0]
-        n_channels = x.size()[1]
-        d = x.size()[2]
+        mb = x.size()[0] #batch size = 64
+        n_channels = x.size()[1] #number of channels = number of kernels in final CNN layer = 24
+        d = x.size()[2] #output width after final CNN layer = 5
         
         x_flat = x.view(mb,n_channels,d*d).permute(0,2,1) # (64 x 25 x 24)
         
@@ -221,7 +234,7 @@ class BiggerRN(BasicModel):
         
         self.relation_type = args.relation_type
         
-        #(number of filters per object+coordinate of object)*2+question vector
+        #input size = (depth of output after final CNN layer+coordinate of object)*2+question vector
         self.g_fc1 = nn.Linear((256+2)*2+11, 2000)
 
         self.g_fc2 = nn.Linear(2000, 2000)
@@ -234,6 +247,7 @@ class BiggerRN(BasicModel):
         self.f_fc4 = nn.Linear(500, 100)
         self.f_fc5 = nn.Linear(100, 10) #final output length depends on the answer embedding (10 in this case)
 
+        #for storing the coordinate of each object as part of the object vector
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
         if args.cuda:
@@ -255,7 +269,7 @@ class BiggerRN(BasicModel):
             np_coord_tensor[:,i,:] = np.array( cvt_coord(i) )
         self.coord_tensor.data.copy_(torch.from_numpy(np_coord_tensor))
 
-
+        # optimizer
         self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
 
@@ -263,9 +277,9 @@ class BiggerRN(BasicModel):
         x = self.conv(img) ## x = (64 x 256 x 5 x 5)
         
         """g"""
-        mb = x.size()[0]
-        n_channels = x.size()[1]
-        d = x.size()[2]
+        mb = x.size()[0] #batch size
+        n_channels = x.size()[1] #number of kernels in final CNN layer = 256
+        d = x.size()[2] #output width after final CNN layer = 5
         
         x_flat = x.view(mb,n_channels,d*d).permute(0,2,1) # (64 x 25 x 256)
         
@@ -347,14 +361,14 @@ class CNN_MLP(BasicModel):
 
 
 #
-# C CLEVR from state descriptions
-# The model that we train on the state description version of CLEVR is similar to the model trained
-# on the pixel version of CLEVR, but without the vision processing module. We used a 256 unit LSTM
-# for question processing and word-lookup embeddings of size 32. For the RN we used a four-layer
-# MLP with 512 units per layer, with ReLU non-linearities for gθ. A three-layer MLP consisting of
-# 512, 1024 (with 2% dropout) and 29 units with ReLU non-linearities was used for fθ. To train the
-# model we used 10 distributed workers that synchronously updated a central parameter server. Each
-# worker learned with mini-batches of size 64, using the Adam optimizer and a learning rate of 1e−4.
+# Sort-of-CLEVR from state descriptions
+# The model that we train on the state description version of Sort-of-CLEVR is similar to the model trained
+# on the pixel version of CLEVR, but without the vision processing module. We used a fixed binary length (11)
+# question embeddings and answer embeddings of size 10. For the RN we used a four-layer
+# MLP with 512 units per layer, with ReLU non-linearities for gθ. A four-layer MLP consisting of
+# 512, 512  (with 50% dropout during training), 128, and 10 units with ReLU non-linearities was used for fθ.
+# To train the model we used GPU with mini-batches of size 64, using the Adam optimizer and a learning rate of 1e−4 
+# for 30 epochs to reach the desired accuracy.
 
 
 class StateRN(BasicModel):
@@ -364,23 +378,22 @@ class StateRN(BasicModel):
         self.relation_type = args.relation_type
 
 
-        ##(number of filters per object+coordinate of object)*2+question vector
-        self.g_fc1 = nn.Linear((14*2)+11, 512)
-
+        ##input size = (depth of output after final CNN layer+coordinate of object)*2+question vector
         #4 MLP layers 512 per layer
+        self.g_fc1 = nn.Linear((14*2)+11, 512)
         self.g_fc2 = nn.Linear(512, 512)
         self.g_fc3 = nn.Linear(512, 512)
         self.g_fc4 = nn.Linear(512, 512)
 
-        # A three-layer MLP consisting of
-        # 512, 1024 (with 2% dropout) and 29 units with ReLU non-linearities
-        # was used for fθ.
+        # A four-layer MLP consisting of 512, 512  (with 50% dropout during training), 128, and 10
+        #  units with ReLU non-linearities used for fθ
         self.f_fc1 = nn.Linear(512, 512)
         self.f_fc2 = nn.Linear(512, 512)
         self.f_fc3 = nn.Linear(512, 128)
         self.f_fc4 = nn.Linear(128, 10)
         # final output length depends on the answer embedding (10 in this case)
 
+        # coordinates for each object
         self.coord_oi = torch.FloatTensor(args.batch_size, 2)
         self.coord_oj = torch.FloatTensor(args.batch_size, 2)
         if args.cuda:
@@ -402,18 +415,16 @@ class StateRN(BasicModel):
             np_coord_tensor[:, i, :] = np.array(cvt_coord(i))
         self.coord_tensor.data.copy_(torch.from_numpy(np_coord_tensor))
 
-        self.fcout = FCOutputModel()
-
+        #optimizer
         self.optimizer = optim.Adam(self.parameters(), lr=args.lr)
 
     def forward(self, img, qst):
-        # 64 = minibatch size = b
         x = img # x = (b x 6 x 14)
 
         """g"""
-        mb = x.size()[0]
+        mb = x.size()[0] # minibatch size = 64
 
-        d = x.size()[1] #num of objects
+        d = x.size()[1] #num of objects = 6
 
         x_flat = x
 
@@ -434,7 +445,7 @@ class StateRN(BasicModel):
         x_full = torch.cat([x_i, x_j], 3)  # 64 x 6 x 6 x ((14) + (14 + 11))
 
         # reshape for passing through network
-        x_ = x_full.view(mb * (d * d), 2 * 14 + 11)  # (64*6*6 x (2*14+11)) = (,)
+        x_ = x_full.view(mb * (d * d), 2 * 14 + 11)  # (64*6*6 x (2*14+11))
 
         x_ = self.g_fc1(x_)  # 64*6*6 x 512
         x_ = F.relu(x_)
@@ -457,7 +468,7 @@ class StateRN(BasicModel):
         x_f = F.relu(x_f)
         x_f = self.f_fc3(x_f)  # 64 x 256
         x_f = F.relu(x_f)
-        x_f = F.dropout(x_f)
+        x_f = F.dropout(x_f) #dropout layer
         x_f = self.f_fc4(x_f)  # 64 x 10
         x_f = F.log_softmax(x_f, dim=1)  # 64 x 10
 
