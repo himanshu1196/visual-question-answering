@@ -25,7 +25,9 @@ Directory structure :
 1. data/ :
     
     sort-of-clevr-original.pickle - contains train and test dataset in form of (image,question,answer) tuples
+    
     train_descriptions.csv - contains state descriptions of images in train data
+    
     test_descriptions.csv - contains state descriptions of images in test data
 
 2. model/ :
